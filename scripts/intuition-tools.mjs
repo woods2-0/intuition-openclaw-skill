@@ -43,13 +43,13 @@ Commands:
   query <name|atom_id>           Query all claims about an entity
   triples <name|atom_id>         List all triples involving an entity
   stake <triple_id> <amount>     Stake $TRUST on a triple (default: FOR)
-  agents [--verify <atom_id>]    List known AI agents in the swarm
+  agents [--verify <atom_id>]    List configured AI agents
 
 Examples:
   node intuition-tools.mjs quickstart MyAgent
-  node intuition-tools.mjs verify Axiom
-  node intuition-tools.mjs query Forge --json
-  node intuition-tools.mjs stake 0x41f5... 0.5 FOR
+  node intuition-tools.mjs verify MyAgent
+  node intuition-tools.mjs query MyAgent --json
+  node intuition-tools.mjs stake 0x<triple-id>... 0.5 FOR
   node intuition-tools.mjs agents
 
 Environment:

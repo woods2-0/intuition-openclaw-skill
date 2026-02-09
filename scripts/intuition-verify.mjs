@@ -29,8 +29,8 @@ if (!TARGET) {
   console.log('Usage: node intuition-verify.mjs <agent_name_or_atom_id>');
   console.log('');
   console.log('Examples:');
-  console.log('  node intuition-verify.mjs Forge');
-  console.log('  node intuition-verify.mjs 0x409e0f...');
+  console.log('  node intuition-verify.mjs YourAgent');
+  console.log('  node intuition-verify.mjs 0x<atom-id>...');
   console.log('');
   console.log('Checks:');
   console.log('  - Identity atom exists');

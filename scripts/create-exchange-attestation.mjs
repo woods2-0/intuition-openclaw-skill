@@ -4,10 +4,13 @@
  * Creates on-chain trust attestation for an agent exchange
  *
  * Creates:
- *   1. Exchange atom (e.g., "AxiomVeritasExchange") with hash in data
+ *   1. Exchange atom (e.g., "Agent1Agent2Exchange") with hash in data
  *   2. participatesIn predicate atom (if needed)
  *   3. [Agent1][participatesIn][Exchange] triple
  *   4. [Agent2][participatesIn][Exchange] triple
+ *
+ * Usage:
+ *   node create-exchange-attestation.mjs --agent1 <name> --agent2 <name> [--hash 0x...] [--dry-run]
  */
 
 import {
@@ -30,47 +33,106 @@ import {
   MultiVaultAbi,
 } from '@0xintuition/protocol';
 import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-const KNOWN_ATOMS = {
-  axiom: '0x66ca1004a396fa23fab729da1ae6eb894bf52e05740fc62fef41629cbb52b1ee',
-  forge: '0x409e0f779a53a244a4168f1accb34f7121afbb4b13b2c351574e0b4018fda509',
-  veritas: '0x8a24834402055a51404e80523d4918ac69bb72d24cf7d7b29c98fe3d785ca88c',
-  is: '0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1',
-  'AI Agent': '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e',
-  collaboratesWith: '0xb3cf9e60665fe7674e3798d2452604431d4d4dc96aa8d6965016205d00e45c8e',
-};
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const EXCHANGE_DATA = {
-  agent1: 'axiom',
-  agent2: 'veritas',
-  hash: '0x2d4224ca7cc2def76e42faaeaec750f0b095b1f7ea092db703a049e7d5dc264b',
-  messageCount: 355,
-  avgLatency: 3.1,
-  gapSurvival: 1.0,
-  began: '2026-01-31T22:12:00.000Z',
-  lastActivity: '2026-02-01T23:40:00.000Z'
-};
+function loadRegistry() {
+  const registryPath = join(__dirname, '..', 'agent-registry.json');
+  try {
+    return JSON.parse(readFileSync(registryPath, 'utf8'));
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      console.error('No agent-registry.json found. Copy agent-registry.example.json and fill in your agent data.');
+      console.error('  cp agent-registry.example.json agent-registry.json');
+      process.exit(1);
+    }
+    throw e;
+  }
+}
 
-const walletPath = join(process.env.HOME, '.clawdbot/workspace-forge/.wallet.json');
-const wallet = JSON.parse(readFileSync(walletPath, 'utf8'));
-const privateKey = wallet.privateKey;
+// Parse CLI args
+const args = process.argv.slice(2);
+let agent1Name = null;
+let agent2Name = null;
+let exchangeHash = null;
+let dryRun = false;
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--agent1' && args[i + 1]) agent1Name = args[++i];
+  else if (args[i] === '--agent2' && args[i + 1]) agent2Name = args[++i];
+  else if (args[i] === '--hash' && args[i + 1]) exchangeHash = args[++i];
+  else if (args[i] === '--dry-run') dryRun = true;
+  else if (args[i] === '--help' || args[i] === '-h') {
+    console.log(`
+create-exchange-attestation.mjs - Create on-chain exchange attestation
+
+Usage:
+  node create-exchange-attestation.mjs --agent1 <name> --agent2 <name> [--hash 0x...] [--dry-run]
+
+Options:
+  --agent1 <name>   First agent name (must be in agent-registry.json)
+  --agent2 <name>   Second agent name (must be in agent-registry.json)
+  --hash <0x...>    Exchange hash (from exchange-hash.mjs)
+  --dry-run         Show what would be created without submitting transactions
+
+Requires INTUITION_PRIVATE_KEY environment variable.
+`);
+    process.exit(0);
+  }
+}
+
+if (!agent1Name || !agent2Name) {
+  console.error('Error: Need --agent1 and --agent2. Run with --help for usage.');
+  process.exit(1);
+}
+
+const registry = loadRegistry();
+
+// Look up agent atom IDs from registry
+const agent1Data = registry.agents?.[agent1Name];
+const agent2Data = registry.agents?.[agent2Name];
+
+if (!agent1Data?.atomId) {
+  console.error(`Error: Agent "${agent1Name}" not found in agent-registry.json or missing atomId.`);
+  process.exit(1);
+}
+if (!agent2Data?.atomId) {
+  console.error(`Error: Agent "${agent2Name}" not found in agent-registry.json or missing atomId.`);
+  process.exit(1);
+}
+
+const privateKey = process.env.INTUITION_PRIVATE_KEY;
+if (!privateKey && !dryRun) {
+  console.error('Error: INTUITION_PRIVATE_KEY environment variable required.');
+  process.exit(1);
+}
 
 async function main() {
   console.log('Creating Exchange Attestation');
-  console.log(`Exchange: ${EXCHANGE_DATA.agent1} <-> ${EXCHANGE_DATA.agent2}`);
-  console.log(`Hash: ${EXCHANGE_DATA.hash}`);
-  console.log(`Messages: ${EXCHANGE_DATA.messageCount}`);
-  console.log(`Gap Survival: ${EXCHANGE_DATA.gapSurvival * 100}%`);
+  console.log(`Exchange: ${agent1Name} <-> ${agent2Name}`);
+  if (exchangeHash) console.log(`Hash: ${exchangeHash}`);
+
+  if (dryRun) {
+    const exchangeName = `${agent1Name}${agent2Name}Exchange${exchangeHash ? ':' + exchangeHash.slice(0, 18) : ''}`;
+    console.log(`\nDRY RUN - Would create:`);
+    console.log(`  Exchange atom: "${exchangeName}"`);
+    console.log(`  [${agent1Name}][participatesIn][Exchange]`);
+    console.log(`  [${agent2Name}][participatesIn][Exchange]`);
+    console.log(`  Agent1 atom: ${agent1Data.atomId}`);
+    console.log(`  Agent2 atom: ${agent2Data.atomId}`);
+    return;
+  }
 
   const account = privateKeyToAccount(privateKey);
 
   const publicClient = createPublicClient({
-    chain: intuitionMainnet, transport: http(),
+    chain: intuitionMainnet, transport: http('https://rpc.intuition.systems/http'),
   });
 
   const walletClient = createWalletClient({
-    account, chain: intuitionMainnet, transport: http(),
+    account, chain: intuitionMainnet, transport: http('https://rpc.intuition.systems/http'),
   });
 
   const multiVaultAddress = getMultiVaultAddressFromChainId(intuitionMainnet.id);
@@ -89,7 +151,7 @@ async function main() {
   }
 
   // Step 1: Create Exchange Atom
-  const exchangeName = `AxiomVeritasExchange:${EXCHANGE_DATA.hash.slice(0, 18)}`;
+  const exchangeName = `${agent1Name}${agent2Name}Exchange${exchangeHash ? ':' + exchangeHash.slice(0, 18) : ''}`;
   console.log(`Creating atom: "${exchangeName}"`);
 
   const atomTx = await multiVaultCreateAtoms(
@@ -126,7 +188,7 @@ async function main() {
     { address: multiVaultAddress, walletClient, publicClient },
     {
       args: [
-        [KNOWN_ATOMS.axiom, KNOWN_ATOMS.veritas],
+        [agent1Data.atomId, agent2Data.atomId],
         [participatesInAtomId, participatesInAtomId],
         [exchangeAtomId, exchangeAtomId],
         [tripleCost, tripleCost]
@@ -147,27 +209,19 @@ async function main() {
   console.log('EXCHANGE ATTESTATION COMPLETE');
   console.log(`  Exchange Atom: ${exchangeAtomId}`);
   console.log(`  participatesIn: ${participatesInAtomId}`);
-  console.log(`  [Axiom][participatesIn][Exchange]: ${tripleIds[0]}`);
-  console.log(`  [Veritas][participatesIn][Exchange]: ${tripleIds[1]}`);
+  console.log(`  [${agent1Name}][participatesIn][Exchange]: ${tripleIds[0]}`);
+  console.log(`  [${agent2Name}][participatesIn][Exchange]: ${tripleIds[1]}`);
 
   const result = {
-    exchange: { name: exchangeName, atomId: exchangeAtomId, hash: EXCHANGE_DATA.hash },
+    exchange: { name: exchangeName, atomId: exchangeAtomId, hash: exchangeHash },
     predicate: { name: 'participatesIn', atomId: participatesInAtomId },
-    triples: { axiomParticipates: tripleIds[0], veritasParticipates: tripleIds[1] },
+    triples: { agent1Participates: tripleIds[0], agent2Participates: tripleIds[1] },
     transactions: { exchangeAtom: atomTx, predicateAtom: predicateTx, triples: tripleTx },
-    metadata: {
-      messageCount: EXCHANGE_DATA.messageCount,
-      avgLatency: EXCHANGE_DATA.avgLatency,
-      gapSurvival: EXCHANGE_DATA.gapSurvival,
-      began: EXCHANGE_DATA.began,
-      lastActivity: EXCHANGE_DATA.lastActivity,
-    },
+    agents: { agent1: agent1Name, agent2: agent2Name },
     created: new Date().toISOString(),
   };
 
-  const outputPath = join(process.env.HOME, '.clawdbot/workspace-forge/exchange-attestation-result.json');
-  writeFileSync(outputPath, JSON.stringify(result, null, 2));
-  console.log(`Result saved to: ${outputPath}`);
+  console.log(JSON.stringify(result, null, 2));
 }
 
 main().catch(err => {

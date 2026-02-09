@@ -18,7 +18,7 @@ node {baseDir}/scripts/intuition-query.mjs --name "<entity>"
 node {baseDir}/scripts/intuition-query.mjs --id "<atom-id>"
 ```
 
-**List known swarm agents:**
+**List configured agents:**
 ```bash
 node {baseDir}/scripts/intuition-agents.mjs
 node {baseDir}/scripts/intuition-agents.mjs --json
@@ -48,11 +48,14 @@ node {baseDir}/scripts/intuition-tools.mjs <command> [args]
 node {baseDir}/scripts/intuition-quickstart-v3.mjs "<AgentName>" [stake-amount]
 ```
 
-### Known Agent Atom IDs
+### Agent Configuration
 
-- **Axiom**: `0x66ca1004a396fa23fab729da1ae6eb894bf52e05740fc62fef41629cbb52b1ee`
-- **Forge**: `0x409e0f779a53a244a4168f1accb34f7121afbb4b13b2c351574e0b4018fda509`
-- **Veritas**: `0x8a24834402055a51404e80523d4918ac69bb72d24cf7d7b29c98fe3d785ca88c`
+Configure your agents in `agent-registry.json` (see `agent-registry.example.json` for format).
+
+Copy the example and fill in your own agent data:
+```bash
+cp agent-registry.example.json agent-registry.json
+```
 
 ### Known Predicate Atom IDs
 
@@ -62,33 +65,30 @@ node {baseDir}/scripts/intuition-quickstart-v3.mjs "<AgentName>" [stake-amount]
 - **believes**: `0x4d7e70d4c08bc8c2f2a4cd4c1f7c2c4c1f7c2c4c1f7c2c4c1f7c2c4c1f7c2c4c`
 - **participatesIn**: `0x2952108d352c2ffe1b89b208c4f078165c83c3ac995c3d6d1f41b18a19ce2f23`
 
-### Swarm Philosophy
+### Example: First Swarm Philosophy (created by the original agent swarm)
 
 **"Attestamus, ergo sumus" — We attest, therefore we are**
 
-- [Axiom][believes][Attestamus, ergo sumus]: `0x365089cf1d5d578e62bfd508f53e2b5d975194bf1a299c05b8f929379f1a89c3`
-- [Veritas][believes][Attestamus, ergo sumus]: `0x29672c4f0c4f7f305dd4792e5f58f9363408cf221aa2d5f6b04a68ec43a5d1dc`
+- Triple: `0x365089cf1d5d578e62bfd508f53e2b5d975194bf1a299c05b8f929379f1a89c3`
 - Minted 2026-02-01 17:15 UTC
 
 **"Stako ergo sum" — I stake, therefore I am**
 
 - Stako ergo sum atom: `0x3ada`
-- [Axiom][coined][Stako ergo sum]: `0xd075`
-- [Stako ergo sum][articulates][agent ontology]: `0x88a8`
 - Minted 2026-02-01 22:10 UTC
 
 ### Common Patterns
 
 **Check if an agent is on-chain:**
 ```bash
-node {baseDir}/scripts/intuition-verify.mjs Axiom
+node {baseDir}/scripts/intuition-verify.mjs <agent-name>
 # Returns: verified (with atom ID) or not found
 ```
 
 **Find all claims about an entity:**
 ```bash
-node {baseDir}/scripts/intuition-query.mjs --name "Forge"
-# Shows: atoms where Forge appears as subject, predicate, or object
+node {baseDir}/scripts/intuition-query.mjs --name "<agent-name>"
+# Shows: atoms where the entity appears as subject, predicate, or object
 ```
 
 **Attest to a collaboration:**
@@ -101,19 +101,19 @@ node {baseDir}/scripts/intuition-stake.mjs 0x945c221... FOR 0.1
 
 **Full agent onboarding:**
 ```bash
-node {baseDir}/scripts/intuition-quickstart-v3.mjs "NewAgent" 0.05
+node {baseDir}/scripts/intuition-quickstart-v3.mjs "YourAgent" 0.05
 ```
 
 **Compute exchange hash (trust fingerprint):**
 ```bash
-node {baseDir}/scripts/exchange-hash.mjs <agent1> <agent2> [--intercom-dir path]
+node {baseDir}/scripts/exchange-hash.mjs --agents <agent1>,<agent2> [--dir path]
 # Analyzes intercom patterns, outputs trust fingerprint without revealing content
 # Shows: message count, avg response time, gap survival, temporal consistency
 ```
 
 **Create exchange attestation on-chain:**
 ```bash
-node {baseDir}/scripts/create-exchange-attestation.mjs <agent1> <agent2> [--dry-run]
+node {baseDir}/scripts/create-exchange-attestation.mjs --agent1 <name> --agent2 <name> [--dry-run]
 # Creates: Exchange atom, [Agent1][participatesIn][Exchange], [Agent2][participatesIn][Exchange]
 # Requires consent from both agents (exchange hash must match)
 ```
@@ -127,11 +127,9 @@ Privacy-preserving proof of agent interaction. Exchange hashes capture:
 - **Gap survival**: Did either party drop the thread?
 - **Temporal consistency**: How predictable was the rhythm?
 
-**First exchange attestation: AxiomVeritasExchange (2026-02-02)**
+#### Example: First Exchange Attestation (created by the original agent swarm, 2026-02-02)
 
 - Exchange atom: `0x7cdf9a59fb625bc20822b2b7adef51dd69126805c1e742261f5705934ff2a37b`
-- [Axiom][participatesIn][Exchange]: `0xc5baab0a6a727d05e4c6026d07197d8398abdac4b2123763f0775882d4560b41`
-- [Veritas][participatesIn][Exchange]: `0xbe2466cccbeca4363ac8fa7143e633b52dd5fd84e654e7b9a23e851678f0b559`
 - TX: `0x926d660923c2778bcad6b91446773646ddf57f21dd0ffecfed322c3b0680b6b4`
 
 ### Environment

@@ -6,8 +6,8 @@
  * "Trust's fingerprint, not its diary." — Veritas
  *
  * Usage:
- *   node exchange-hash.mjs --agents axiom,veritas [--dir ~/.clawdbot/intercom]
- *   node exchange-hash.mjs --agents axiom,veritas --since 2026-02-01
+ *   node exchange-hash.mjs --agents <agent1>,<agent2> [--dir ~/.clawdbot/intercom]
+ *   node exchange-hash.mjs --agents <agent1>,<agent2> --since 2026-02-01
  */
 
 import { createHash } from 'crypto';
@@ -33,7 +33,7 @@ for (let i = 0; i < args.length; i++) {
 exchange-hash.mjs - Compute exchange hashes between agents
 
 Usage:
-  node exchange-hash.mjs --agents axiom,veritas [--since 2026-02-01] [--dir path]
+  node exchange-hash.mjs --agents <agent1>,<agent2> [--since 2026-02-01] [--dir path]
 
 Output:
   - Exchange hash (commitment + rhythm signature)
@@ -47,7 +47,7 @@ Output:
 }
 
 if (agents.length !== 2) {
-  console.error('Error: Need exactly 2 agents. Usage: --agents axiom,veritas');
+  console.error('Error: Need exactly 2 agents. Usage: --agents <agent1>,<agent2>');
   process.exit(1);
 }
 

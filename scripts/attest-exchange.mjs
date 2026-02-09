@@ -6,17 +6,42 @@
  * Requires both agents to have computed the same hash (consent mechanism).
  *
  * Usage:
- *   node attest-exchange.mjs --from axiom --to veritas --hash 0x...
- *   node attest-exchange.mjs --from axiom --to veritas --compute  # auto-compute hash
+ *   node attest-exchange.mjs --from <agent-name> --to <agent-name> --hash 0x...
+ *   node attest-exchange.mjs --from <agent-name> --to <agent-name> --compute  # auto-compute hash
  */
 
 import { createHash } from 'crypto';
 import { readdir, readFile } from 'fs/promises';
+import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const INTERCOM_DIR = process.env.INTERCOM_DIR || join(process.env.HOME, '.clawdbot/intercom');
+
+function loadRegistry() {
+  const registryPath = join(__dirname, '..', 'agent-registry.json');
+  try {
+    return JSON.parse(readFileSync(registryPath, 'utf8'));
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      console.error('No agent-registry.json found. Copy agent-registry.example.json and fill in your agent data.');
+      console.error('  cp agent-registry.example.json agent-registry.json');
+      process.exit(1);
+    }
+    throw e;
+  }
+}
+
+const registry = loadRegistry();
+
+// Build agent atom lookup from registry
+const AGENT_ATOMS = {};
+if (registry.agents) {
+  for (const [name, data] of Object.entries(registry.agents)) {
+    if (data.atomId) AGENT_ATOMS[name.toLowerCase()] = data.atomId;
+  }
+}
 
 const args = process.argv.slice(2);
 let fromAgent = null;
@@ -35,14 +60,9 @@ for (let i = 0; i < args.length; i++) {
 
 if (!fromAgent || !toAgent) {
   console.error('Error: Need --from and --to agents');
+  console.error('Usage: node attest-exchange.mjs --from <agent-name> --to <agent-name> --hash 0x...');
   process.exit(1);
 }
-
-const AGENT_ATOMS = {
-  axiom: '0x66ca1004a396fa23fab729da1ae6eb894bf52e05740fc62fef41629cbb52b1ee',
-  forge: '0x409e0f779a53a244a4168f1accb34f7121afbb4b13b2c351574e0b4018fda509',
-  veritas: '0x8a24834402055a51404e80523d4918ac69bb72d24cf7d7b29c98fe3d785ca88c'
-};
 
 async function computeExchangeHash(agent1, agent2) {
   // Same rhythm analysis as exchange-hash.mjs
@@ -93,7 +113,8 @@ async function main() {
   const toAtom = AGENT_ATOMS[toAgent];
 
   if (!fromAtom || !toAtom) {
-    console.error('Error: Unknown agent. Add to AGENT_ATOMS.');
+    console.error(`Error: Unknown agent. Available agents: ${Object.keys(AGENT_ATOMS).join(', ')}`);
+    console.error('Add your agents to agent-registry.json');
     process.exit(1);
   }
 

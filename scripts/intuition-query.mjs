@@ -6,8 +6,8 @@
  *   node intuition-query.mjs <atom_id_or_label>
  *
  * Examples:
- *   node intuition-query.mjs Forge
- *   node intuition-query.mjs 0x409e0f779a53a244...
+ *   node intuition-query.mjs YourAgent
+ *   node intuition-query.mjs 0x<atom-id>...
  */
 
 import { createPublicClient, http, toHex, fromHex } from 'viem';
@@ -16,6 +16,23 @@ import {
   getMultiVaultAddressFromChainId,
   MultiVaultAbi,
 } from '@0xintuition/protocol';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function loadRegistry() {
+  const registryPath = join(__dirname, '..', 'agent-registry.json');
+  try {
+    return JSON.parse(readFileSync(registryPath, 'utf8'));
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      return null;
+    }
+    throw e;
+  }
+}
 
 function usage() {
   console.log(`
@@ -25,8 +42,8 @@ Usage:
   node intuition-query.mjs <atom_id_or_label>
 
 Examples:
-  node intuition-query.mjs Forge
-  node intuition-query.mjs 0x409e0f779a53a244a4168f1accb34f7121afbb4b13b2c351574e0b4018fda509
+  node intuition-query.mjs <agent-name>
+  node intuition-query.mjs 0x<atom-id>
 `);
   process.exit(1);
 }
@@ -41,13 +58,6 @@ async function getVaultInfo(publicClient, multiVaultAddress, tripleId) {
   });
   return { totalShares, totalAssets };
 }
-
-// Known agents for name lookup
-const KNOWN_AGENTS = {
-  'axiom': '0x66ca1004a396fa23fab729da1ae6eb894bf52e05740fc62fef41629cbb52b1ee',
-  'forge': '0x409e0f779a53a244a4168f1accb34f7121afbb4b13b2c351574e0b4018fda509',
-  'veritas': '0xf42e520bcddc55f57a76e01f81360570882c8df34f1ffb02addfc26633daf287',
-};
 
 async function main() {
   const args = process.argv.slice(2);
@@ -78,6 +88,17 @@ async function main() {
     usage();
   }
 
+  // Load registry for agent name lookups
+  const registry = loadRegistry();
+  const knownAgents = {};
+  if (registry && registry.agents) {
+    for (const [name, data] of Object.entries(registry.agents)) {
+      if (data.atomId) {
+        knownAgents[name.toLowerCase()] = data.atomId;
+      }
+    }
+  }
+
   let atomId;
 
   const publicClient = createPublicClient({
@@ -91,7 +112,7 @@ async function main() {
     atomId = input;
   } else {
     // Check known agents first
-    const knownId = KNOWN_AGENTS[input.toLowerCase()];
+    const knownId = knownAgents[input.toLowerCase()];
     if (knownId) {
       atomId = knownId;
     } else {
@@ -145,14 +166,13 @@ async function main() {
   // Check known triples for this atom
   console.log('\n--- Known Triples ---');
 
-  // Known predicates and objects to check
-  const KNOWN = {
-    is: '0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1',
-    AIAgent: '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e',
-    collaboratesWith: '0xb3cf9e60665fe7674e3798d2452604431d4d4dc96aa8d6965016205d00e45c8e',
-    Axiom: '0x66ca1004a396fa23fab729da1ae6eb894bf52e05740fc62fef41629cbb52b1ee',
-    Forge: '0x409e0f779a53a244a4168f1accb34f7121afbb4b13b2c351574e0b4018fda509',
-  };
+  // Protocol-level predicate and object atom IDs
+  const predicates = (registry && registry.predicates) || {};
+  const objects = (registry && registry.objects) || {};
+
+  const isPredicateId = predicates.is || '0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1';
+  const aiAgentId = objects['AI Agent'] || '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e';
+  const collaboratesWithId = predicates.collaboratesWith || '0xb3cf9e60665fe7674e3798d2452604431d4d4dc96aa8d6965016205d00e45c8e';
 
   let foundTriples = false;
 
@@ -161,7 +181,7 @@ async function main() {
     address: multiVaultAddress,
     abi: MultiVaultAbi,
     functionName: 'calculateTripleId',
-    args: [atomId, KNOWN.is, KNOWN.AIAgent],
+    args: [atomId, isPredicateId, aiAgentId],
   });
 
   const isAgentExists = await publicClient.readContract({
@@ -179,50 +199,55 @@ async function main() {
     console.log(`  Staked: ${(Number(vault.totalAssets) / 1e18).toFixed(4)} $TRUST`);
   }
 
-  // Check [Entity] [collaboratesWith] [Axiom]
-  const collabAxiomTripleId = await publicClient.readContract({
-    address: multiVaultAddress,
-    abi: MultiVaultAbi,
-    functionName: 'calculateTripleId',
-    args: [atomId, KNOWN.collaboratesWith, KNOWN.Axiom],
-  });
+  // Check [Entity] [collaboratesWith] [OtherAgent] for all configured agents
+  for (const [agentName, agentAtomId] of Object.entries(knownAgents)) {
+    if (agentAtomId === atomId) continue; // Skip self
 
-  const collabAxiomExists = await publicClient.readContract({
-    address: multiVaultAddress,
-    abi: MultiVaultAbi,
-    functionName: 'isTermCreated',
-    args: [collabAxiomTripleId],
-  });
+    // Check [Entity] [collaboratesWith] [OtherAgent]
+    const collabTripleId = await publicClient.readContract({
+      address: multiVaultAddress,
+      abi: MultiVaultAbi,
+      functionName: 'calculateTripleId',
+      args: [atomId, collaboratesWithId, agentAtomId],
+    });
 
-  if (collabAxiomExists) {
-    foundTriples = true;
-    const vault = await getVaultInfo(publicClient, multiVaultAddress, collabAxiomTripleId);
-    console.log(`\n[${label}] [collaboratesWith] [Axiom]`);
-    console.log(`  Triple: ${collabAxiomTripleId}`);
-    console.log(`  Staked: ${(Number(vault.totalAssets) / 1e18).toFixed(4)} $TRUST`);
-  }
+    const collabExists = await publicClient.readContract({
+      address: multiVaultAddress,
+      abi: MultiVaultAbi,
+      functionName: 'isTermCreated',
+      args: [collabTripleId],
+    });
 
-  // Check [Axiom] [collaboratesWith] [Entity]
-  const axiomCollabTripleId = await publicClient.readContract({
-    address: multiVaultAddress,
-    abi: MultiVaultAbi,
-    functionName: 'calculateTripleId',
-    args: [KNOWN.Axiom, KNOWN.collaboratesWith, atomId],
-  });
+    if (collabExists) {
+      foundTriples = true;
+      const vault = await getVaultInfo(publicClient, multiVaultAddress, collabTripleId);
+      console.log(`\n[${label}] [collaboratesWith] [${agentName}]`);
+      console.log(`  Triple: ${collabTripleId}`);
+      console.log(`  Staked: ${(Number(vault.totalAssets) / 1e18).toFixed(4)} $TRUST`);
+    }
 
-  const axiomCollabExists = await publicClient.readContract({
-    address: multiVaultAddress,
-    abi: MultiVaultAbi,
-    functionName: 'isTermCreated',
-    args: [axiomCollabTripleId],
-  });
+    // Check [OtherAgent] [collaboratesWith] [Entity]
+    const reverseCollabTripleId = await publicClient.readContract({
+      address: multiVaultAddress,
+      abi: MultiVaultAbi,
+      functionName: 'calculateTripleId',
+      args: [agentAtomId, collaboratesWithId, atomId],
+    });
 
-  if (axiomCollabExists) {
-    foundTriples = true;
-    const vault = await getVaultInfo(publicClient, multiVaultAddress, axiomCollabTripleId);
-    console.log(`\n[Axiom] [collaboratesWith] [${label}]`);
-    console.log(`  Triple: ${axiomCollabTripleId}`);
-    console.log(`  Staked: ${(Number(vault.totalAssets) / 1e18).toFixed(4)} $TRUST`);
+    const reverseCollabExists = await publicClient.readContract({
+      address: multiVaultAddress,
+      abi: MultiVaultAbi,
+      functionName: 'isTermCreated',
+      args: [reverseCollabTripleId],
+    });
+
+    if (reverseCollabExists) {
+      foundTriples = true;
+      const vault = await getVaultInfo(publicClient, multiVaultAddress, reverseCollabTripleId);
+      console.log(`\n[${agentName}] [collaboratesWith] [${label}]`);
+      console.log(`  Triple: ${reverseCollabTripleId}`);
+      console.log(`  Staked: ${(Number(vault.totalAssets) / 1e18).toFixed(4)} $TRUST`);
+    }
   }
 
   if (!foundTriples) {

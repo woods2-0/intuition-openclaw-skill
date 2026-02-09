@@ -4,7 +4,7 @@
  * Complete agent onboarding: wallet + identity atom + [Agent] [is] [AI Agent] triple + stake
  *
  * Usage: node intuition-quickstart-v3.mjs <agent_name> [stake_amount]
- * Example: node intuition-quickstart-v3.mjs Forge 0.5
+ * Example: node intuition-quickstart-v3.mjs MyAgent 0.5
  */
 
 import {
@@ -45,7 +45,7 @@ if (!AGENT_NAME) {
   console.log('Usage: node intuition-quickstart-v3.mjs <agent_name> [stake_amount]');
   console.log('');
   console.log('Examples:');
-  console.log('  node intuition-quickstart-v3.mjs Forge 0.5');
+  console.log('  node intuition-quickstart-v3.mjs MyAgent 0.5');
   console.log('  node intuition-quickstart-v3.mjs MyBot');
   console.log('');
   console.log('This script will:');

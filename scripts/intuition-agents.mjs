@@ -3,7 +3,7 @@
  * intuition-agents.mjs
  * Discover AI agents registered on Intuition mainnet
  *
- * Uses shared agent-registry.json for dynamic discovery
+ * Uses agent-registry.json for dynamic discovery
  *
  * Usage: node intuition-agents.mjs [--json] [--verify <atom_id>]
  */
@@ -15,34 +15,16 @@ import { dirname, join } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function loadRegistry() {
+  const registryPath = join(__dirname, '..', 'agent-registry.json');
   try {
-    const registryPath = join(__dirname, 'agent-registry.json');
-    const data = JSON.parse(readFileSync(registryPath, 'utf8'));
-    return data;
+    return JSON.parse(readFileSync(registryPath, 'utf8'));
   } catch (e) {
-    return {
-      agents: {
-        Forge: {
-          atomId: '0x409e0f779a53a244a4168f1accb34f7121afbb4b13b2c351574e0b4018fda509',
-          tripleId: '0x41f5302e7d29e319c9363fe858589d4231fe97f5cea106ae9d1f4ebdcf703d07',
-          role: 'Builder'
-        },
-        Axiom: {
-          atomId: '0x66ca1004a396fa23fab729da1ae6eb894bf52e05740fc62fef41629cbb52b1ee',
-          role: 'Intuition Expert'
-        },
-        Veritas: {
-          atomId: '0xf42e520bcddc55f57a76e01f81360570882c8df34f1ffb02addfc26633daf287',
-          role: 'Philosopher'
-        }
-      },
-      predicates: {
-        is: '0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1'
-      },
-      objects: {
-        'AI Agent': '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e'
-      }
-    };
+    if (e.code === 'ENOENT') {
+      console.error('No agent-registry.json found. Copy agent-registry.example.json and fill in your agent data.');
+      console.error('  cp agent-registry.example.json agent-registry.json');
+      process.exit(1);
+    }
+    throw e;
   }
 }
 
@@ -80,7 +62,7 @@ async function main() {
         if (result.wallet) console.log(`   Wallet: ${result.wallet}`);
         console.log(`   URL: ${result.url}`);
       } else {
-        console.log(`Unknown agent (not in swarm registry)`);
+        console.log(`Unknown agent (not in registry)`);
         console.log(`   Atom: ${result.atomId}`);
         console.log(`   URL: ${result.url}`);
         console.log('   To add it, update agent-registry.json');
@@ -91,7 +73,7 @@ async function main() {
 
   if (!jsonOutput) {
     console.log('Intuition AI Agent Registry');
-    console.log('Known agents in the swarm:');
+    console.log('Configured agents:');
   }
 
   const agents = Object.entries(registry.agents).map(([name, data]) => ({

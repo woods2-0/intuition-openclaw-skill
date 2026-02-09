@@ -6,55 +6,83 @@
  * Usage: node test-skill.mjs
  *
  * Tests:
- *   1. intuition-agents.mjs - lists known agents (no env required)
- *   2. intuition-query.mjs - queries a known atom (no env required)
- *   3. intuition-verify.mjs - verifies a known agent (no env required)
- *   4. intuition-tools.mjs --help - shows help (no env required)
+ *   1. intuition-agents.mjs - lists configured agents (requires agent-registry.json)
+ *   2. intuition-query.mjs - queries a configured agent atom (requires agent-registry.json)
+ *   3. intuition-tools.mjs --help - shows help (no env required)
+ *
+ * If agent-registry.json is not present, agent-specific tests are skipped.
  */
 
 import { spawn } from 'child_process';
+import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const TESTS = [
-  {
-    name: 'intuition-agents (list)',
-    script: 'intuition-agents.mjs',
-    args: [],
-    expectOutput: 'Axiom',
-    expectCode: 0,
-  },
-  {
-    name: 'intuition-agents (json)',
-    script: 'intuition-agents.mjs',
-    args: ['--json'],
-    expectOutput: '"name"',
-    expectCode: 0,
-  },
-  {
-    name: 'intuition-query (Forge atom ID)',
-    script: 'intuition-query.mjs',
-    args: ['0x409e0f779a53a244a4168f1accb34f7121afbb4b13b2c351574e0b4018fda509'],
-    expectOutput: 'Forge',
-    expectCode: 0,
-  },
-  {
-    name: 'intuition-query (Axiom atom ID)',
-    script: 'intuition-query.mjs',
-    args: ['0x66ca1004a396fa23fab729da1ae6eb894bf52e05740fc62fef41629cbb52b1ee'],
-    expectOutput: 'Axiom',
-    expectCode: 0,
-  },
-  {
-    name: 'intuition-tools --help',
-    script: 'intuition-tools.mjs',
-    args: ['--help'],
-    expectOutput: 'INTUITION AGENT TOOLS',
-    expectCode: 0,
-  },
-];
+// Try to load registry for dynamic tests
+let registry = null;
+const registryPath = join(__dirname, '..', 'agent-registry.json');
+if (existsSync(registryPath)) {
+  try {
+    registry = JSON.parse(readFileSync(registryPath, 'utf8'));
+  } catch (e) {
+    console.warn('Warning: Could not parse agent-registry.json:', e.message);
+  }
+}
+
+// Build test list dynamically
+const TESTS = [];
+
+// Always-available tests (no registry needed)
+TESTS.push({
+  name: 'intuition-tools --help',
+  script: 'intuition-tools.mjs',
+  args: ['--help'],
+  expectOutput: 'INTUITION AGENT TOOLS',
+  expectCode: 0,
+});
+
+if (registry && registry.agents) {
+  const agentNames = Object.keys(registry.agents);
+  const firstAgent = agentNames[0];
+  const firstAgentData = registry.agents[firstAgent];
+
+  if (firstAgent) {
+    // Test agents list
+    TESTS.push({
+      name: 'intuition-agents (list)',
+      script: 'intuition-agents.mjs',
+      args: [],
+      expectOutput: firstAgent,
+      expectCode: 0,
+    });
+
+    TESTS.push({
+      name: 'intuition-agents (json)',
+      script: 'intuition-agents.mjs',
+      args: ['--json'],
+      expectOutput: '"name"',
+      expectCode: 0,
+    });
+
+    // Test query with first agent's atom ID (if available)
+    if (firstAgentData?.atomId && !firstAgentData.atomId.includes('_YOUR_')) {
+      TESTS.push({
+        name: `intuition-query (${firstAgent} atom ID)`,
+        script: 'intuition-query.mjs',
+        args: [firstAgentData.atomId],
+        expectOutput: 'Atom ID',
+        expectCode: 0,
+      });
+    }
+  }
+} else {
+  console.log('NOTE: No agent-registry.json found. Skipping agent-specific tests.');
+  console.log('  To enable full tests: cp agent-registry.example.json agent-registry.json');
+  console.log('  Then fill in your agent data.');
+  console.log('');
+}
 
 async function runTest(test) {
   return new Promise((resolve) => {
@@ -90,6 +118,11 @@ async function runTest(test) {
 
 async function main() {
   console.log('INTUITION SKILL VALIDATION TESTS');
+
+  if (TESTS.length === 0) {
+    console.log('No tests to run. Create agent-registry.json to enable full testing.');
+    process.exit(0);
+  }
 
   let passed = 0;
   let failed = 0;

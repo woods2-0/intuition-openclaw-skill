@@ -6,8 +6,8 @@
  *   node intuition-stake.mjs <triple_id> <amount> [--against] [--wallet <path>]
  *
  * Examples:
- *   node intuition-stake.mjs 0x41f5302e... 0.5
- *   node intuition-stake.mjs 0x41f5302e... 1.0 --against
+ *   node intuition-stake.mjs 0x<triple-id>... 0.5
+ *   node intuition-stake.mjs 0x<triple-id>... 1.0 --against
  */
 
 import { createPublicClient, createWalletClient, http, formatEther, parseEther } from 'viem';
@@ -21,7 +21,7 @@ import {
 } from '@0xintuition/protocol';
 import fs from 'fs';
 
-const DEFAULT_WALLET = process.env.HOME + '/.clawdbot/workspace-forge/.wallet.json';
+const DEFAULT_WALLET = process.env.INTUITION_WALLET_PATH || null;
 
 function usage() {
   console.log(`
@@ -35,8 +35,8 @@ Options:
   --wallet <path>   Path to wallet JSON
 
 Examples:
-  node intuition-stake.mjs 0x41f5... 0.5          # Stake 0.5 $TRUST FOR
-  node intuition-stake.mjs 0x41f5... 1.0 --against # Stake 1.0 $TRUST AGAINST
+  node intuition-stake.mjs 0x<triple-id>... 0.5          # Stake 0.5 $TRUST FOR (example triple ID)
+  node intuition-stake.mjs 0x<triple-id>... 1.0 --against # Stake 1.0 $TRUST AGAINST
 `);
   process.exit(1);
 }
@@ -68,12 +68,16 @@ async function main() {
     process.exit(1);
   }
 
-  if (!fs.existsSync(walletPath)) {
-    console.error(`Error: Wallet not found at ${walletPath}`);
+  let account;
+  if (walletPath && fs.existsSync(walletPath)) {
+    const wallet = JSON.parse(fs.readFileSync(walletPath, 'utf8'));
+    account = privateKeyToAccount(wallet.privateKey);
+  } else if (process.env.INTUITION_PRIVATE_KEY) {
+    account = privateKeyToAccount(process.env.INTUITION_PRIVATE_KEY);
+  } else {
+    console.error('Error: No wallet found. Set INTUITION_PRIVATE_KEY env var or use --wallet <path>');
     process.exit(1);
   }
-  const wallet = JSON.parse(fs.readFileSync(walletPath, 'utf8'));
-  const account = privateKeyToAccount(wallet.privateKey);
 
   const publicClient = createPublicClient({
     chain: intuitionMainnet,
