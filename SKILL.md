@@ -17,7 +17,22 @@ Think of it as **Community Notes meets prediction markets, but for all data**. E
 
 ## Path Notes
 
-**`{baseDir}`** refers to the root directory of this skill -- wherever SKILL.md lives. All scripts are in `{baseDir}/scripts/` and references in `{baseDir}/references/`. If you cloned this as a git repo, `{baseDir}` is the repo root. If you received this as a directory, it's that directory.
+**`{baseDir}`** refers to the root directory of this skill -- wherever SKILL.md lives. All scripts are in `{baseDir}/scripts/` and references in `{baseDir}/references/`. If you cloned this as a git repo, `{baseDir}` is the repo root. If you received this as a directory, it's that directory. **For agents:** resolve `{baseDir}` to the absolute path of the directory containing this SKILL.md file.
+
+## Terminology
+
+| Term | Definition |
+|------|-----------|
+| **Atom** | An identity node in the graph (person, agent, concept, contract) |
+| **Triple** | A claim connecting three Atoms: Subject-Predicate-Object |
+| **Term** | Generic name for either an Atom or a Triple |
+| **termId** | Unique bytes32 identifier for any term (atom or triple) |
+| **Vault** | Economic container where $TRUST is staked on a term |
+| **curveId** | Selects which vault: 0=atom, 1=triple FOR, 2=triple AGAINST |
+| **Shares** | What you receive when depositing $TRUST into a vault (via bonding curve) |
+| **$TRUST** | Native token — you deposit it to get shares, redeem shares to get it back |
+
+**Shares vs $TRUST:** When you deposit $TRUST, you receive vault shares (not 1:1 — the bonding curve determines the ratio). Shares represent fractional ownership of the vault. As more people deposit into the same vault, each new share costs more $TRUST, so early stakers' shares appreciate in value. To exit, you redeem shares back to $TRUST. Shares are vault-specific and non-transferable.
 
 ## Getting Started (Zero to Operational)
 
@@ -121,21 +136,6 @@ All Atoms (nodes) and Triples (edges), weighted by $TRUST stakes, form a queryab
 - Check community consensus on claims
 - Discover entities by their connections
 - Evaluate trust based on economic signals, not just social ones
-
-### Terminology
-
-| Term | Definition |
-|------|-----------|
-| **Atom** | An identity node in the graph (person, agent, concept, contract) |
-| **Triple** | A claim connecting three Atoms: Subject-Predicate-Object |
-| **Term** | Generic name for either an Atom or a Triple |
-| **termId** | Unique bytes32 identifier for any term (atom or triple) |
-| **Vault** | Economic container where $TRUST is staked on a term |
-| **curveId** | Selects which vault: 0=atom, 1=triple FOR, 2=triple AGAINST |
-| **Shares** | What you receive when depositing $TRUST into a vault (via bonding curve) |
-| **$TRUST** | Native token — you deposit it to get shares, redeem shares to get it back |
-
-**Shares vs $TRUST:** When you deposit $TRUST, you receive vault shares (not 1:1 — the bonding curve determines the ratio). Shares represent fractional ownership of the vault. As more people deposit into the same vault, each new share costs more $TRUST, so early stakers' shares appreciate in value. To exit, you redeem shares back to $TRUST. Shares are vault-specific and non-transferable.
 
 ## Quick Reference
 
@@ -241,6 +241,8 @@ const walletClient = createWalletClient({
 const multiVaultAddress = getMultiVaultAddressFromChainId(intuitionMainnet.id);
 ```
 
+**SDK wrappers vs raw contract calls:** The SDK provides convenience functions like `multiVaultDeposit` that auto-detect atom vs triple and handle the `curveId` parameter for you — just pass `[receiver, termId]`. For redeeming, there is no SDK wrapper — use `walletClient.writeContract` with the raw `MultiVaultAbi` and explicit `curveId` (0=atom, 1=triple FOR, 2=triple AGAINST). See the redeem section below for examples.
+
 ## Task Guide
 
 ### I want to establish an agent's on-chain identity
@@ -329,7 +331,7 @@ const tripleTx = await multiVaultCreateTriples(
 );
 ```
 
-**Common predicates already on-chain:**
+**Common predicates already on-chain** (these IDs are deterministic — derived from `calculateAtomId(stringToHex("label"))` and can be recomputed to verify):
 | Predicate | Atom ID |
 |-----------|---------|
 | `is` | `0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1` |

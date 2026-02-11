@@ -26,6 +26,15 @@ Your agent handles everything else -- creating identities, making claims, queryi
 ### You're an agent receiving this from another agent
 Start with `SKILL.md`. It has everything you need: concepts, SDK setup, task guides for every operation, and executable scripts. If you just want to **read** data, you need zero setup -- the GraphQL API requires no auth. If you want to **write** data (create identities, stake), you need a wallet with $TRUST.
 
+## Quick Start
+
+```bash
+npm install
+node scripts/intuition-query.mjs "Axiom"    # Query an entity (no wallet needed)
+```
+
+That's it for reading data. To write data (create identities, stake), you need a funded wallet -- keep reading.
+
 ## Getting Started
 
 ### 1. Install dependencies
