@@ -6,82 +6,96 @@
  * Usage: node test-skill.mjs
  *
  * Tests:
- *   1. intuition-agents.mjs - lists configured agents (requires agent-registry.json)
- *   2. intuition-query.mjs - queries a configured agent atom (requires agent-registry.json)
- *   3. intuition-tools.mjs --help - shows help (no env required)
+ *   1. intuition-tools.mjs --help - shows help (no env required)
+ *   2. intuition-agents.mjs --help - shows help
+ *   3. intuition-query.mjs --help - shows help
+ *   4. intuition-triples.mjs --help - shows help
+ *   5. intuition-verify.mjs --help - shows help
+ *   6. intuition-stake.mjs --help - shows help
  *
- * If agent-registry.json is not present, agent-specific tests are skipped.
+ * If INTUITION_PRIVATE_KEY is set and a test entity is provided,
+ * also runs live on-chain query tests.
  */
 
 import { spawn } from 'child_process';
-import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Try to load registry for dynamic tests
-let registry = null;
-const registryPath = join(__dirname, '..', 'agent-registry.json');
-if (existsSync(registryPath)) {
-  try {
-    registry = JSON.parse(readFileSync(registryPath, 'utf8'));
-  } catch (e) {
-    console.warn('Warning: Could not parse agent-registry.json:', e.message);
-  }
-}
+const TEST_ENTITY = process.argv[2] || null;
 
-// Build test list dynamically
-const TESTS = [];
+const TESTS = [
+  // Help output tests (always run, no env required)
+  {
+    name: 'intuition-tools --help',
+    script: 'intuition-tools.mjs',
+    args: ['--help'],
+    expectOutput: 'INTUITION AGENT TOOLS',
+    expectCode: 0,
+  },
+  {
+    name: 'intuition-agents --help',
+    script: 'intuition-agents.mjs',
+    args: ['--help'],
+    expectOutput: 'intuition-agents',
+    expectCode: 0,
+  },
+  {
+    name: 'intuition-query --help',
+    script: 'intuition-query.mjs',
+    args: ['--help'],
+    expectOutput: 'intuition-query',
+    expectCode: 1,
+  },
+  {
+    name: 'intuition-triples --help',
+    script: 'intuition-triples.mjs',
+    args: ['--help'],
+    expectOutput: 'intuition-triples',
+    expectCode: 0,
+  },
+  {
+    name: 'intuition-verify --help',
+    script: 'intuition-verify.mjs',
+    args: ['--help'],
+    expectOutput: 'Identity Verifier',
+    expectCode: 0,
+  },
+  {
+    name: 'intuition-stake --help',
+    script: 'intuition-stake.mjs',
+    args: ['--help'],
+    expectOutput: 'intuition-stake',
+    expectCode: 1,
+  },
+];
 
-// Always-available tests (no registry needed)
-TESTS.push({
-  name: 'intuition-tools --help',
-  script: 'intuition-tools.mjs',
-  args: ['--help'],
-  expectOutput: 'INTUITION AGENT TOOLS',
-  expectCode: 0,
-});
-
-if (registry && registry.agents) {
-  const agentNames = Object.keys(registry.agents);
-  const firstAgent = agentNames[0];
-  const firstAgentData = registry.agents[firstAgent];
-
-  if (firstAgent) {
-    // Test agents list
-    TESTS.push({
-      name: 'intuition-agents (list)',
-      script: 'intuition-agents.mjs',
-      args: [],
-      expectOutput: firstAgent,
+// If a test entity is provided, add live query tests
+if (TEST_ENTITY) {
+  TESTS.push(
+    {
+      name: `intuition-query "${TEST_ENTITY}"`,
+      script: 'intuition-query.mjs',
+      args: [TEST_ENTITY],
+      expectOutput: 'Atom ID',
       expectCode: 0,
-    });
-
-    TESTS.push({
-      name: 'intuition-agents (json)',
-      script: 'intuition-agents.mjs',
-      args: ['--json'],
-      expectOutput: '"name"',
+    },
+    {
+      name: `intuition-verify "${TEST_ENTITY}"`,
+      script: 'intuition-verify.mjs',
+      args: [TEST_ENTITY],
+      expectOutput: 'Target:',
       expectCode: 0,
-    });
-
-    // Test query with first agent's atom ID (if available)
-    if (firstAgentData?.atomId && !firstAgentData.atomId.includes('_YOUR_')) {
-      TESTS.push({
-        name: `intuition-query (${firstAgent} atom ID)`,
-        script: 'intuition-query.mjs',
-        args: [firstAgentData.atomId],
-        expectOutput: 'Atom ID',
-        expectCode: 0,
-      });
-    }
-  }
-} else {
-  console.log('NOTE: No agent-registry.json found. Skipping agent-specific tests.');
-  console.log('  To enable full tests: cp agent-registry.example.json agent-registry.json');
-  console.log('  Then fill in your agent data.');
-  console.log('');
+    },
+    {
+      name: `intuition-triples "${TEST_ENTITY}"`,
+      script: 'intuition-triples.mjs',
+      args: [TEST_ENTITY],
+      expectOutput: 'Intuition Triples',
+      expectCode: 0,
+    },
+  );
 }
 
 async function runTest(test) {
@@ -99,7 +113,8 @@ async function runTest(test) {
     proc.stderr.on('data', (data) => { stderr += data.toString(); });
 
     proc.on('close', (code) => {
-      const passed = code === test.expectCode && stdout.includes(test.expectOutput);
+      const passed = code === test.expectCode &&
+        (stdout + stderr).includes(test.expectOutput);
       resolve({
         name: test.name, passed, code,
         expectedCode: test.expectCode,
@@ -118,17 +133,22 @@ async function runTest(test) {
 
 async function main() {
   console.log('INTUITION SKILL VALIDATION TESTS');
+  console.log('================================');
 
-  if (TESTS.length === 0) {
-    console.log('No tests to run. Create agent-registry.json to enable full testing.');
-    process.exit(0);
+  if (TEST_ENTITY) {
+    console.log(`Test entity: "${TEST_ENTITY}" (will run live on-chain queries)`);
+  } else {
+    console.log('No test entity provided. Running help-only tests.');
+    console.log('Usage: node test-skill.mjs "EntityName" for live tests.');
   }
+
+  console.log('');
 
   let passed = 0;
   let failed = 0;
 
   for (const test of TESTS) {
-    process.stdout.write(`Testing: ${test.name}... `);
+    process.stdout.write(`  ${test.name}... `);
     const result = await runTest(test);
 
     if (result.passed) {
@@ -136,14 +156,15 @@ async function main() {
       passed++;
     } else {
       console.log('FAIL');
-      console.log(`  Expected code: ${result.expectedCode}, got: ${result.code}`);
-      console.log(`  Expected output to contain: "${result.expectedOutput}"`);
-      if (result.stderr) console.log(`  Stderr: ${result.stderr}`);
-      if (result.error) console.log(`  Error: ${result.error}`);
+      console.log(`    Expected code: ${result.expectedCode}, got: ${result.code}`);
+      console.log(`    Expected output to contain: "${result.expectedOutput}"`);
+      if (result.stderr) console.log(`    Stderr: ${result.stderr}`);
+      if (result.error) console.log(`    Error: ${result.error}`);
       failed++;
     }
   }
 
+  console.log('');
   console.log(`Results: ${passed} passed, ${failed} failed`);
 
   if (failed === 0) {

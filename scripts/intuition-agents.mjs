@@ -1,108 +1,159 @@
 #!/usr/bin/env node
 /**
  * intuition-agents.mjs
- * Discover AI agents registered on Intuition mainnet
+ * Discover AI agents registered on Intuition mainnet via GraphQL
  *
- * Uses agent-registry.json for dynamic discovery
- *
- * Usage: node intuition-agents.mjs [--json] [--verify <atom_id>]
+ * Usage:
+ *   node intuition-agents.mjs                    # List all AI agents
+ *   node intuition-agents.mjs --predicate "trusts" # Find all [X] [trusts] [Y] triples
+ *   node intuition-agents.mjs --json              # JSON output
  */
 
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+const GRAPHQL_ENDPOINT = process.env.INTUITION_GRAPHQL_ENDPOINT || 'https://mainnet.intuition.sh/v1/graphql';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const args = process.argv.slice(2);
+const jsonOutput = args.includes('--json');
+const limitIdx = args.indexOf('--limit');
+const limit = limitIdx > -1 && args[limitIdx + 1] ? parseInt(args[limitIdx + 1]) : 50;
+const predicateIdx = args.indexOf('--predicate');
+const customPredicate = predicateIdx > -1 ? args[predicateIdx + 1] : null;
 
-function loadRegistry() {
-  const registryPath = join(__dirname, '..', 'agent-registry.json');
-  try {
-    return JSON.parse(readFileSync(registryPath, 'utf8'));
-  } catch (e) {
-    if (e.code === 'ENOENT') {
-      console.error('No agent-registry.json found. Copy agent-registry.example.json and fill in your agent data.');
-      console.error('  cp agent-registry.example.json agent-registry.json');
-      process.exit(1);
-    }
-    throw e;
-  }
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`
+intuition-agents.mjs - Discover AI agents on Intuition
+
+Usage:
+  node intuition-agents.mjs                         # List all [X] [is] [AI Agent] claims
+  node intuition-agents.mjs --predicate "trusts"    # Find all triples with a given predicate
+  node intuition-agents.mjs --limit 20              # Limit results
+  node intuition-agents.mjs --json                  # JSON output
+
+Options:
+  --predicate <name>  Search for triples using this predicate (default: finds AI agents)
+  --limit <n>         Max results (default: 50)
+  --json              Output as JSON
+
+Queries the Intuition GraphQL API (no auth required).
+`);
+  process.exit(0);
 }
 
-const registry = loadRegistry();
-const jsonOutput = process.argv.includes('--json');
-const verifyArg = process.argv.indexOf('--verify');
-const verifyAtom = verifyArg > -1 ? process.argv[verifyArg + 1] : null;
+async function graphqlQuery(query, variables = {}) {
+  const response = await fetch(GRAPHQL_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  });
 
-function verifyAgent(atomId) {
-  const entry = Object.entries(registry.agents).find(([_, a]) => a.atomId === atomId);
-  return {
-    atomId,
-    name: entry ? entry[0] : null,
-    role: entry ? entry[1].role : null,
-    tripleId: entry ? entry[1].tripleId : null,
-    wallet: entry ? entry[1].wallet : null,
-    inRegistry: !!entry,
-    url: `https://intuition.systems/a/${atomId}`,
-  };
+  if (!response.ok) {
+    throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  if (result.errors) {
+    throw new Error(`GraphQL errors: ${result.errors.map(e => e.message).join(', ')}`);
+  }
+
+  return result.data;
+}
+
+async function findAgents(limit) {
+  const query = `
+    query FindAgents($limit: Int!) {
+      triples(
+        where: {
+          predicate: { label: { _eq: "is" } }
+          object: { label: { _eq: "AI Agent" } }
+        }
+        order_by: { vault: { total_shares: desc_nulls_last } }
+        limit: $limit
+      ) {
+        id
+        subject { id label }
+        predicate { id label }
+        object { id label }
+        vault { total_shares position_count }
+        counter_vault { total_shares position_count }
+      }
+    }
+  `;
+  return graphqlQuery(query, { limit });
+}
+
+async function findByPredicate(predicateLabel, limit) {
+  const query = `
+    query FindByPredicate($predicate: String!, $limit: Int!) {
+      triples(
+        where: {
+          predicate: { label: { _ilike: $predicate } }
+        }
+        order_by: { vault: { total_shares: desc_nulls_last } }
+        limit: $limit
+      ) {
+        id
+        subject { id label }
+        predicate { id label }
+        object { id label }
+        vault { total_shares position_count }
+        counter_vault { total_shares position_count }
+      }
+    }
+  `;
+  return graphqlQuery(query, { predicate: predicateLabel, limit });
 }
 
 async function main() {
-  if (verifyAtom) {
-    if (!jsonOutput) console.log(`Verifying agent: ${verifyAtom}`);
-    const result = verifyAgent(verifyAtom);
+  let data;
 
-    if (jsonOutput) {
-      console.log(JSON.stringify(result, null, 2));
-    } else {
-      if (result.name) {
-        console.log(`Known agent: ${result.name}`);
-        console.log(`   Role: ${result.role}`);
-        console.log(`   Atom: ${result.atomId}`);
-        if (result.tripleId) console.log(`   Triple: ${result.tripleId}`);
-        if (result.wallet) console.log(`   Wallet: ${result.wallet}`);
-        console.log(`   URL: ${result.url}`);
-      } else {
-        console.log(`Unknown agent (not in registry)`);
-        console.log(`   Atom: ${result.atomId}`);
-        console.log(`   URL: ${result.url}`);
-        console.log('   To add it, update agent-registry.json');
-      }
+  if (customPredicate) {
+    if (!jsonOutput) {
+      console.log(`Searching for triples with predicate: "${customPredicate}"`);
+      console.log('');
     }
+    data = await findByPredicate(customPredicate, limit);
+  } else {
+    if (!jsonOutput) {
+      console.log('Intuition AI Agent Discovery');
+      console.log('============================');
+      console.log('');
+    }
+    data = await findAgents(limit);
+  }
+
+  const triples = data.triples || [];
+
+  if (triples.length === 0) {
+    console.log('No results found.');
     return;
   }
 
-  if (!jsonOutput) {
-    console.log('Intuition AI Agent Registry');
-    console.log('Configured agents:');
-  }
-
-  const agents = Object.entries(registry.agents).map(([name, data]) => ({
-    name, ...data,
-    url: data.atomId ? `https://intuition.systems/a/${data.atomId}` : null,
-  }));
-
   if (jsonOutput) {
-    console.log(JSON.stringify({
-      agents, count: agents.length,
-      predicates: registry.predicates,
-      objects: registry.objects,
-      triples: registry.triples,
-      updated: registry.updated
-    }, null, 2));
-  } else {
-    agents.forEach((agent, i) => {
-      console.log(`${i + 1}. ${agent.name}`);
-      console.log(`   Role: ${agent.role}`);
-      if (agent.atomId) console.log(`   Atom: ${agent.atomId}`);
-      if (agent.tripleId) console.log(`   Triple: ${agent.tripleId}`);
-      if (agent.wallet) console.log(`   Wallet: ${agent.wallet}`);
-      if (agent.url) console.log(`   URL: ${agent.url}`);
-      console.log('');
-    });
-    console.log(`Registry updated: ${registry.updated || 'unknown'}`);
-    console.log('To verify an agent: node intuition-agents.mjs --verify <atom_id>');
-    console.log('To add your agent: node intuition-quickstart-v3.mjs <name>');
+    console.log(JSON.stringify(triples, null, 2));
+    return;
   }
+
+  triples.forEach((t, i) => {
+    const forStake = t.vault?.total_shares ? (Number(t.vault.total_shares) / 1e18).toFixed(4) : '0';
+    const againstStake = t.counter_vault?.total_shares ? (Number(t.counter_vault.total_shares) / 1e18).toFixed(4) : '0';
+    const stakers = t.vault?.position_count || 0;
+
+    console.log(`${i + 1}. [${t.subject.label}] [${t.predicate.label}] [${t.object.label}]`);
+    console.log(`   Triple ID: ${t.id}`);
+    console.log(`   Staked FOR: ${forStake} $TRUST (${stakers} stakers)`);
+    if (parseFloat(againstStake) > 0) {
+      console.log(`   Staked AGAINST: ${againstStake} $TRUST`);
+    }
+    console.log(`   Explorer: https://portal.intuition.systems/app/claim/${t.id}`);
+    console.log('');
+  });
+
+  console.log(`Found ${triples.length} result(s).`);
+  console.log('');
+  console.log('To verify a specific agent: node intuition-verify.mjs <name>');
+  console.log('To query claims about an entity: node intuition-query.mjs --name <name>');
 }
 
-main();
+main().catch(err => {
+  console.error('Error:', err.message);
+  process.exit(1);
+});

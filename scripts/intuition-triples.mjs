@@ -1,66 +1,21 @@
 #!/usr/bin/env node
 /**
  * intuition-triples.mjs
- * Query known triples for agents
+ * Query all triples involving an entity using GraphQL
  *
  * Usage:
  *   node intuition-triples.mjs <name_or_atom_id>
+ *   node intuition-triples.mjs <name> --json
  */
 
-import { createPublicClient, http, toHex, parseEther } from 'viem';
+import { createPublicClient, http, toHex } from 'viem';
 import {
   intuitionMainnet,
   getMultiVaultAddressFromChainId,
   MultiVaultAbi,
 } from '@0xintuition/protocol';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-function loadRegistry() {
-  const registryPath = join(__dirname, '..', 'agent-registry.json');
-  try {
-    return JSON.parse(readFileSync(registryPath, 'utf8'));
-  } catch (e) {
-    if (e.code === 'ENOENT') {
-      console.error('No agent-registry.json found. Copy agent-registry.example.json and fill in your agent data.');
-      console.error('  cp agent-registry.example.json agent-registry.json');
-      process.exit(1);
-    }
-    throw e;
-  }
-}
-
-// Build KNOWN_ATOMS from registry (agents + predicates + objects)
-const registry = loadRegistry();
-const KNOWN_ATOMS = {};
-
-// Add agents from registry
-if (registry.agents) {
-  for (const [name, data] of Object.entries(registry.agents)) {
-    if (data.atomId) KNOWN_ATOMS[name] = data.atomId;
-  }
-}
-
-// Add protocol-level predicates
-if (registry.predicates) {
-  for (const [name, id] of Object.entries(registry.predicates)) {
-    KNOWN_ATOMS[name] = id;
-  }
-}
-
-// Add protocol-level objects
-if (registry.objects) {
-  for (const [name, id] of Object.entries(registry.objects)) {
-    KNOWN_ATOMS[name] = id;
-  }
-}
-
-const ATOM_LABELS = Object.fromEntries(
-  Object.entries(KNOWN_ATOMS).map(([k, v]) => [v.toLowerCase(), k])
-);
+const GRAPHQL_ENDPOINT = process.env.INTUITION_GRAPHQL_ENDPOINT || 'https://mainnet.intuition.sh/v1/graphql';
 
 const client = createPublicClient({
   chain: intuitionMainnet,
@@ -69,163 +24,214 @@ const client = createPublicClient({
 
 const multiVaultAddress = getMultiVaultAddressFromChainId(intuitionMainnet.id);
 
-async function getTripleStake(tripleId) {
-  try {
-    const [totalShares, totalAssets] = await client.readContract({
-      address: multiVaultAddress,
-      abi: MultiVaultAbi,
-      functionName: 'getVault',
-      args: [tripleId, 1n],
-    });
-    return Number(totalAssets) / 1e18;
-  } catch {
-    return 0;
+async function graphqlQuery(query, variables = {}) {
+  const response = await fetch(GRAPHQL_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`GraphQL request failed: ${response.status}`);
   }
+
+  const result = await response.json();
+  if (result.errors) {
+    throw new Error(`GraphQL errors: ${result.errors.map(e => e.message).join(', ')}`);
+  }
+
+  return result.data;
 }
 
-// Dynamically compute triples from registry agents
-async function computeKnownTriples() {
-  const triples = [];
-  const agentNames = Object.keys(registry.agents || {});
-  const isId = KNOWN_ATOMS['is'];
-  const aiAgentId = KNOWN_ATOMS['AI Agent'];
-  const collaboratesWithId = KNOWN_ATOMS['collaboratesWith'];
-
-  for (const name of agentNames) {
-    const agentAtomId = KNOWN_ATOMS[name];
-    if (!agentAtomId) continue;
-
-    // Check [Agent] [is] [AI Agent]
-    if (isId && aiAgentId) {
-      try {
-        const tripleId = await client.readContract({
-          address: multiVaultAddress,
-          abi: MultiVaultAbi,
-          functionName: 'calculateTripleId',
-          args: [agentAtomId, isId, aiAgentId],
-        });
-        const exists = await client.readContract({
-          address: multiVaultAddress,
-          abi: MultiVaultAbi,
-          functionName: 'isTermCreated',
-          args: [tripleId],
-        });
-        if (exists) {
-          triples.push({ id: tripleId, subject: name, predicate: 'is', object: 'AI Agent' });
-        }
-      } catch {}
-    }
-
-    // Check [Agent] [collaboratesWith] [OtherAgent] for each pair
-    if (collaboratesWithId) {
-      for (const otherName of agentNames) {
-        if (otherName === name) continue;
-        const otherAtomId = KNOWN_ATOMS[otherName];
-        if (!otherAtomId) continue;
-
-        try {
-          const tripleId = await client.readContract({
-            address: multiVaultAddress,
-            abi: MultiVaultAbi,
-            functionName: 'calculateTripleId',
-            args: [agentAtomId, collaboratesWithId, otherAtomId],
-          });
-          const exists = await client.readContract({
-            address: multiVaultAddress,
-            abi: MultiVaultAbi,
-            functionName: 'isTermCreated',
-            args: [tripleId],
-          });
-          if (exists) {
-            triples.push({ id: tripleId, subject: name, predicate: 'collaboratesWith', object: otherName });
-          }
-        } catch {}
+async function findTriplesByAtomId(atomId, limit) {
+  const query = `
+    query FindTriples($atomId: numeric!, $limit: Int!) {
+      as_subject: triples(
+        where: { subject_id: { _eq: $atomId } }
+        order_by: { vault: { total_shares: desc_nulls_last } }
+        limit: $limit
+      ) {
+        id
+        subject { id label }
+        predicate { id label }
+        object { id label }
+        vault { total_shares position_count }
+        counter_vault { total_shares position_count }
+      }
+      as_object: triples(
+        where: { object_id: { _eq: $atomId } }
+        order_by: { vault: { total_shares: desc_nulls_last } }
+        limit: $limit
+      ) {
+        id
+        subject { id label }
+        predicate { id label }
+        object { id label }
+        vault { total_shares position_count }
+        counter_vault { total_shares position_count }
+      }
+      as_predicate: triples(
+        where: { predicate_id: { _eq: $atomId } }
+        order_by: { vault: { total_shares: desc_nulls_last } }
+        limit: $limit
+      ) {
+        id
+        subject { id label }
+        predicate { id label }
+        object { id label }
+        vault { total_shares position_count }
+        counter_vault { total_shares position_count }
       }
     }
-  }
+  `;
+  return graphqlQuery(query, { atomId: parseInt(atomId), limit });
+}
 
-  return triples;
+async function findAtomByLabel(label) {
+  const query = `
+    query FindAtom($label: String!) {
+      atoms(where: { label: { _eq: $label } }, limit: 1) {
+        id
+        label
+      }
+    }
+  `;
+  const data = await graphqlQuery(query, { label });
+  return data.atoms?.[0] || null;
 }
 
 async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     console.log(`
-intuition-triples.mjs - Query triples for agents
+intuition-triples.mjs - Query all triples involving an entity
 
 Usage:
   node intuition-triples.mjs <name_or_atom_id>
 
 Options:
-  --json    Output as JSON
+  --json              Output as JSON
+  --limit <n>         Max results per direction (default: 25)
 
 Examples:
-  node intuition-triples.mjs <agent-name>
-  node intuition-triples.mjs <agent-name> --json
+  node intuition-triples.mjs "Alice"
+  node intuition-triples.mjs 12345
+  node intuition-triples.mjs "AI Agent" --json
+
+Queries the Intuition GraphQL API to find all triples where the entity
+appears as subject, object, or predicate.
 `);
     process.exit(0);
   }
 
   const input = args.find(a => !a.startsWith('--'));
-  const jsonOutput = args.includes('--json');
+  const jsonOutputFlag = args.includes('--json');
+  const limitIdx = args.indexOf('--limit');
+  const limit = limitIdx > -1 && args[limitIdx + 1] ? parseInt(args[limitIdx + 1]) : 25;
 
-  console.log('Intuition Triples');
-  console.log('=================');
-  console.log(`Input: ${input}`);
+  if (!jsonOutputFlag) {
+    console.log('Intuition Triples');
+    console.log('=================');
+    console.log(`Input: ${input}`);
+  }
 
-  let atomId = input;
+  // Resolve to atom ID
+  let atomId;
   let label = input;
 
-  if (!input.startsWith('0x')) {
-    atomId = KNOWN_ATOMS[input];
-    if (!atomId) {
-      atomId = await client.readContract({
+  if (/^\d+$/.test(input)) {
+    // Numeric atom ID
+    atomId = input;
+  } else if (input.startsWith('0x') && input.length === 66) {
+    // Hex atom ID — calculate numeric ID via contract
+    const numericId = await client.readContract({
+      address: multiVaultAddress,
+      abi: MultiVaultAbi,
+      functionName: 'calculateAtomId',
+      args: [input],
+    });
+    atomId = numericId.toString();
+  } else {
+    // Name — look up via GraphQL first, fall back to calculateAtomId
+    const atom = await findAtomByLabel(input);
+    if (atom) {
+      atomId = atom.id;
+      label = atom.label;
+    } else {
+      // Try calculating the atom ID from the name
+      const calculatedId = await client.readContract({
         address: multiVaultAddress,
         abi: MultiVaultAbi,
         functionName: 'calculateAtomId',
         args: [toHex(input)],
       });
+
+      const exists = await client.readContract({
+        address: multiVaultAddress,
+        abi: MultiVaultAbi,
+        functionName: 'isTermCreated',
+        args: [calculatedId],
+      });
+
+      if (!exists) {
+        console.log(`\nNo atom found for "${input}". It may not exist on-chain yet.`);
+        process.exit(0);
+      }
+
+      atomId = calculatedId.toString();
     }
-  } else {
-    label = ATOM_LABELS[input.toLowerCase()] || input.slice(0, 12) + '...';
   }
 
-  console.log(`Label: ${label}`);
-  console.log(`Atom ID: ${atomId}`);
+  if (!jsonOutputFlag) {
+    console.log(`Label: ${label}`);
+    console.log(`Atom ID: ${atomId}`);
+  }
 
-  // Compute triples dynamically from registry
-  const allTriples = await computeKnownTriples();
+  // Query all triples via GraphQL
+  const data = await findTriplesByAtomId(atomId, limit);
 
-  const relatedTriples = allTriples.filter(t =>
-    t.subject === label || t.object === label ||
-    KNOWN_ATOMS[t.subject] === atomId || KNOWN_ATOMS[t.object] === atomId
-  );
+  const asSubject = data.as_subject || [];
+  const asObject = data.as_object || [];
+  const asPredicate = data.as_predicate || [];
+  const allTriples = [...asSubject, ...asObject, ...asPredicate];
 
-  if (relatedTriples.length === 0) {
-    console.log('No known triples found for this entity.');
+  if (allTriples.length === 0) {
+    if (!jsonOutputFlag) {
+      console.log('\nNo triples found for this entity.');
+    } else {
+      console.log(JSON.stringify({ subject: [], object: [], predicate: [] }, null, 2));
+    }
     process.exit(0);
   }
 
-  const results = [];
-  console.log(`Found ${relatedTriples.length} triple(s):`);
+  if (jsonOutputFlag) {
+    console.log(JSON.stringify({
+      atomId,
+      label,
+      as_subject: asSubject,
+      as_object: asObject,
+      as_predicate: asPredicate,
+    }, null, 2));
+    return;
+  }
 
-  for (const t of relatedTriples) {
-    const stake = await getTripleStake(t.id);
-    const formatted = `[${t.subject}] [${t.predicate}] [${t.object}]`;
-
-    if (jsonOutput) {
-      results.push({ ...t, stake });
-    } else {
-      console.log(`  ${formatted}`);
-      console.log(`    Stake: ${stake.toFixed(4)} $TRUST`);
-      console.log(`    Triple ID: ${t.id}`);
-      console.log(`    Explorer: https://app.intuition.systems/app/claim/${t.id}`);
+  function printTriples(triples, role) {
+    if (triples.length === 0) return;
+    console.log(`\n--- As ${role} (${triples.length}) ---`);
+    for (const t of triples) {
+      const forStake = t.vault?.total_shares ? (Number(t.vault.total_shares) / 1e18).toFixed(4) : '0';
+      const stakers = t.vault?.position_count || 0;
+      console.log(`  [${t.subject.label}] [${t.predicate.label}] [${t.object.label}]`);
+      console.log(`    Staked: ${forStake} $TRUST (${stakers} stakers) | ID: ${t.id}`);
     }
   }
 
-  if (jsonOutput) {
-    console.log(JSON.stringify(results, null, 2));
-  }
+  printTriples(asSubject, 'Subject');
+  printTriples(asObject, 'Object');
+  printTriples(asPredicate, 'Predicate');
+
+  console.log(`\nTotal: ${allTriples.length} triple(s)`);
+  console.log(`Explorer: https://portal.intuition.systems`);
 }
 
 main().catch(err => {

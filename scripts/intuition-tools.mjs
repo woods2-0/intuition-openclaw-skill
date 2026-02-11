@@ -11,8 +11,8 @@
  *   verify <name|id>      - Verify an atom exists
  *   query <name|id>       - Query claims about an entity
  *   triples <name|id>     - List triples for an entity
- *   stake <triple_id> <amount> [FOR|AGAINST] - Stake on a triple
- *   agents                - List known AI agents
+ *   stake <id> <amount>   - Stake on an atom or triple
+ *   agents                - Discover AI agents on-chain
  */
 
 import { spawn } from 'child_process';
@@ -28,6 +28,8 @@ const TOOLS = {
   triples: 'intuition-triples.mjs',
   stake: 'intuition-stake.mjs',
   agents: 'intuition-agents.mjs',
+  hash: 'exchange-hash.mjs',
+  exchange: 'create-exchange-attestation.mjs',
 };
 
 function showHelp() {
@@ -38,22 +40,26 @@ Build identity on-chain, one claim at a time
 Usage: node intuition-tools.mjs <command> [args]
 
 Commands:
-  quickstart <name>              Full agent onboarding: wallet -> atom -> triple -> stake
-  verify <name|atom_id>          Verify an atom exists and decode its label
-  query <name|atom_id>           Query all claims about an entity
-  triples <name|atom_id>         List all triples involving an entity
-  stake <triple_id> <amount>     Stake $TRUST on a triple (default: FOR)
-  agents [--verify <atom_id>]    List configured AI agents
+  quickstart <name> [amount]     Full agent onboarding: wallet -> atom -> triple -> stake
+  verify <name|atom_id>          Verify an atom exists and check identity claims
+  query <name|atom_id>           Query claims about an entity
+  triples <name|atom_id>         List all triples involving an entity (via GraphQL)
+  stake <term_id> <amount>       Stake $TRUST on an atom or triple
+  agents                         Discover AI agents on-chain (via GraphQL)
+  hash <agent1> <agent2>         Compute exchange trust fingerprint
+  exchange --name1 A --name2 B   Create on-chain exchange attestation
 
 Examples:
-  node intuition-tools.mjs quickstart MyAgent
+  node intuition-tools.mjs quickstart MyAgent 0.5
   node intuition-tools.mjs verify MyAgent
-  node intuition-tools.mjs query MyAgent --json
-  node intuition-tools.mjs stake 0x<triple-id>... 0.5 FOR
-  node intuition-tools.mjs agents
+  node intuition-tools.mjs query MyAgent
+  node intuition-tools.mjs triples "AI Agent" --json
+  node intuition-tools.mjs stake 0x<term-id> 0.5
+  node intuition-tools.mjs stake 0x<triple-id> 0.5 --against
+  node intuition-tools.mjs agents --json
 
 Environment:
-  PRIVATE_KEY - Required for quickstart and stake commands
+  INTUITION_PRIVATE_KEY - Required for quickstart, stake, and exchange commands
 `);
 }
 
