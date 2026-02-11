@@ -29,7 +29,8 @@ import {
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-// Known atom IDs (from Intuition mainnet)
+// Known atom IDs — deterministic hashes derived from calculateAtomId(stringToHex("label"))
+// These are permanent and can be verified: the same string always produces the same ID.
 const KNOWN_ATOMS = {
   'is': '0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1',
   'AI Agent': '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e',
@@ -72,7 +73,8 @@ if (isNaN(stakeFloat) || !isFinite(stakeFloat) || stakeFloat <= 0) {
   process.exit(1);
 }
 
-const walletDir = join(process.env.HOME, `.intuition-wallet-${AGENT_NAME}`);
+const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
+const walletDir = join(homeDir, `.intuition-wallet-${AGENT_NAME}`);
 const walletFile = join(walletDir, 'wallet.json');
 const outputFile = join(walletDir, 'identity.json');
 

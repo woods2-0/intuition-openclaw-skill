@@ -4,7 +4,7 @@
 
 | Network | URL | Auth |
 |---------|-----|------|
-| Mainnet | `https://mainnet.intuition.sh/v1/graphql` | None required |
+| Mainnet | `https://mainnet.intuition.sh/v1/graphql` | None required (public, no rate limit for reasonable use) |
 | Testnet | `https://testnet.intuition.sh/v1/graphql` | None required |
 
 Powered by **Hasura**. Supports filtering, sorting, pagination, aggregations, and subscriptions.

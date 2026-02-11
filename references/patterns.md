@@ -115,8 +115,8 @@ query FindAgents {
     predicate: { label: { _eq: "is" } }
     object: { label: { _eq: "AI Agent" } }
   }) {
-    subject { id label }
-    vault { total_shares }
+    subject { term_id label }
+    triple_vault { total_shares }
   }
 }
 ```
@@ -283,8 +283,12 @@ const profit = Number(currentValue - entryValue) / 1e18;
 const returnPct = (Number(currentValue) / Number(entryValue) - 1) * 100;
 
 if (returnPct > targetReturn) {
-  // Redeem for profit
-  await redeemTriple(currentShares, account.address, tripleId);
+  // Redeem for profit — unified redeem() with curveId (1 = triple FOR vault)
+  await walletClient.writeContract({
+    address: multiVaultAddress, abi: MultiVaultAbi,
+    functionName: 'redeem',
+    args: [account.address, tripleId, 1n, currentShares, 0n],
+  });
 }
 ```
 
@@ -308,3 +312,15 @@ node scripts/intuition-positions.mjs --json        # Machine-readable output for
 ```
 
 For automated strategies, poll positions periodically and compare against entry prices (which you must track yourself — the chain doesn't store your cost basis).
+
+### Stake Sizing Guide
+
+| Size | Signal | Use Case |
+|------|--------|----------|
+| < 0.01 $TRUST | Dust — fees eat most of it | Don't bother |
+| 0.01-0.1 $TRUST | Minimal signal | Testing, low-confidence claims |
+| 0.1-1 $TRUST | Light signal | General curation, moderate confidence |
+| 1-10 $TRUST | Strong conviction | Claims you're confident about |
+| 10+ $TRUST | Major backing | High-conviction, institutional-grade claims |
+
+**Rule of thumb:** Minimum practical stake is ~0.1 $TRUST. Below that, entry/exit fees (0-10%) eat into a disproportionate share of your position.

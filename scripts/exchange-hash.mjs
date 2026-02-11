@@ -14,7 +14,8 @@ import { createHash } from 'crypto';
 import { readdir, readFile, stat } from 'fs/promises';
 import { join } from 'path';
 
-const INTERCOM_DIR = process.env.INTERCOM_DIR || join(process.env.HOME, '.clawdbot/intercom');
+const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
+const INTERCOM_DIR = process.env.INTERCOM_DIR || join(homeDir, '.clawdbot/intercom');
 
 const args = process.argv.slice(2);
 let agents = [];

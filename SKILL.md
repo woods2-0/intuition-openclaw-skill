@@ -15,6 +15,10 @@ Think of it as **Community Notes meets prediction markets, but for all data**. E
 
 **Why it matters for agents:** When your agent needs to decide whether to trust an address, verify a capability claim, or assess an entity's reputation, Intuition provides cryptoeconomically-backed trust signals -- not just social votes, but real economic commitment.
 
+## Path Notes
+
+**`{baseDir}`** refers to the root directory of this skill -- wherever SKILL.md lives. All scripts are in `{baseDir}/scripts/` and references in `{baseDir}/references/`. If you cloned this as a git repo, `{baseDir}` is the repo root. If you received this as a directory, it's that directory.
+
 ## Getting Started (Zero to Operational)
 
 **Just want to read data?** You need nothing. The GraphQL API at `https://mainnet.intuition.sh/v1/graphql` requires no auth, no wallet, no setup. Skip to the Task Guide and start querying.
@@ -118,6 +122,21 @@ All Atoms (nodes) and Triples (edges), weighted by $TRUST stakes, form a queryab
 - Discover entities by their connections
 - Evaluate trust based on economic signals, not just social ones
 
+### Terminology
+
+| Term | Definition |
+|------|-----------|
+| **Atom** | An identity node in the graph (person, agent, concept, contract) |
+| **Triple** | A claim connecting three Atoms: Subject-Predicate-Object |
+| **Term** | Generic name for either an Atom or a Triple |
+| **termId** | Unique bytes32 identifier for any term (atom or triple) |
+| **Vault** | Economic container where $TRUST is staked on a term |
+| **curveId** | Selects which vault: 0=atom, 1=triple FOR, 2=triple AGAINST |
+| **Shares** | What you receive when depositing $TRUST into a vault (via bonding curve) |
+| **$TRUST** | Native token — you deposit it to get shares, redeem shares to get it back |
+
+**Shares vs $TRUST:** When you deposit $TRUST, you receive vault shares (not 1:1 — the bonding curve determines the ratio). Shares represent fractional ownership of the vault. As more people deposit into the same vault, each new share costs more $TRUST, so early stakers' shares appreciate in value. To exit, you redeem shares back to $TRUST. Shares are vault-specific and non-transferable.
+
 ## Quick Reference
 
 ### Wallet & Environment Setup
@@ -186,6 +205,8 @@ Bridge directly at `https://app.intuition.systems/bridge`
 | Query (GraphQL or contract read) | Free |
 
 Exact atom/triple costs vary — always call `multiVaultGetAtomCost()` and `multiVaultGetTripleCost()` before write operations.
+
+**Gas fees:** The Intuition L3 uses $TRUST as its gas token (no separate ETH needed). Gas costs are negligible — a typical transaction costs ~0.0001 $TRUST. The same $TRUST you use for staking also pays for gas.
 
 ### Dependencies
 
@@ -379,6 +400,8 @@ The GraphQL API is the best way to discover relationships you don't already know
 ### I want to stake on an atom or claim
 
 Staking deposits $TRUST to signal conviction. For **atoms**, this signals relevance. For **triples**, you can stake FOR (agreement) or AGAINST (disagreement).
+
+**SDK wrapper vs raw contract:** The SDK helper `multiVaultDeposit` auto-detects atom vs triple and handles the curveId parameter internally — you just pass `[receiver, termId]`. For AGAINST stakes, resolve the counter-triple ID first and pass it as the termId. For redeeming, there is no SDK wrapper — use `walletClient.writeContract` with the raw ABI and explicit curveId (see "I want to redeem" below).
 
 **Using the stake script:**
 ```bash
@@ -601,6 +624,7 @@ query GetPositions($address: String!) {
 const value = (BigInt(shares) * BigInt(totalAssets)) / BigInt(totalShares);
 const valueInTrust = Number(value) / 1e18;
 ```
+**Note:** This shows pre-fee value. Actual redemption may return 0-10% less due to exit fees.
 
 ### I want to redeem (unstake) my position
 
@@ -686,7 +710,7 @@ For detailed speculation strategies, see `references/patterns.md` → Speculativ
 | `exchange-hash.mjs` | Compute trust fingerprint between two agents | Privacy-preserving interaction proof |
 | `create-exchange-attestation.mjs` | Create on-chain exchange attestation | Recording agent-to-agent trust |
 
-### Complete End-to-End Example
+## Complete End-to-End Example
 
 This single code block shows the full lifecycle: setup → query → stake → check position → redeem.
 
@@ -792,12 +816,22 @@ console.log('Redeemed, tx:', redeemTx);
 
 ## Troubleshooting
 
+### Common Errors
+
 - **"insufficient funds"**: Wallet needs $TRUST. See "How to Get $TRUST" above — buy on Coinbase, swap on Uniswap (Base), or bridge from Base at `https://app.intuition.systems/bridge`.
 - **"atom already exists"**: This is fine -- use `calculateAtomId` to get the existing ID. Don't create duplicates.
 - **"not a valid triple ID"**: The ID doesn't correspond to a triple. Check with `multiVaultIsTriple`.
 - **No results from query**: Check spelling. Atom IDs are case-sensitive and computed from exact byte content.
 - **Transaction reverted**: Likely insufficient value sent. Ensure you're sending at least `atomCost` for atoms or `tripleCost` for triples.
 - **GraphQL returns empty**: The entity may not exist yet, or filter syntax may be wrong. Use Hasura operators: `_eq`, `_ilike`, `_gt`, etc.
+
+### Network Issues
+
+- **RPC timeout / connection refused**: The RPC at `https://rpc.intuition.systems/http` may be temporarily unavailable. Retry after a few seconds. There is no public fallback RPC.
+- **GraphQL endpoint down**: The indexer at `https://mainnet.intuition.sh/v1/graphql` may lag behind the chain. If a recently created atom doesn't appear in GraphQL yet, verify directly via contract read (`isTermCreated`).
+- **Nonce too low**: Your transaction was already processed, or another transaction from the same wallet was mined first. Wait for pending transactions to confirm before sending new ones.
+- **Transaction stuck in mempool**: On the L3, transactions typically confirm in seconds. If stuck, it usually means insufficient gas. Re-submit with the same nonce.
+- **Rate limiting**: The public GraphQL endpoint has no strict rate limit for reasonable use, but avoid hammering it with hundreds of requests per second. Add small delays (100-500ms) between batch queries.
 
 ## Further Reading
 

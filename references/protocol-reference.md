@@ -158,14 +158,23 @@ The curveId parameter specifies which vault curve to interact with:
 
 Each triple has two independent vaults (FOR and AGAINST), each with its own bonding curve and share price.
 
+### SDK Wrappers vs Raw Contract
+
+The SDK provides convenience wrappers that simplify the raw contract calls:
+
+- **`multiVaultDeposit`** — Takes just `[receiver, termId]` as args. It auto-detects whether the term is an atom or triple and handles curveId internally. To stake AGAINST a triple, resolve the counter-triple ID first with `getCounterIdFromTripleId` and pass that as the termId.
+- **`multiVaultRedeem`** — No SDK wrapper exists. Use `walletClient.writeContract` with the raw ABI and explicit curveId (see redeem examples in SKILL.md).
+- **`multiVaultCreateAtoms`/`multiVaultCreateTriples`** — Thin wrappers around the raw contract. Args match the contract signature.
+
+When in doubt, use the SDK wrapper for deposits and raw contract calls for redeems.
+
 ### Write Functions
 
 | Function | Args | Returns |
 |----------|------|---------|
 | `multiVaultCreateAtoms(config, { args, value })` | `args: [bytes[], uint256[]]` | Transaction hash |
 | `multiVaultCreateTriples(config, { args, value })` | `args: [bytes32[], bytes32[], bytes32[], uint256[]]` | Transaction hash |
-| `multiVaultDeposit(config, { args, value })` | `args: [address receiver, bytes32 termId, uint256 curveId, uint256 minShares]` | Transaction hash |
-| `multiVaultRedeem(config, { args })` | `args: [address receiver, bytes32 termId, uint256 curveId, uint256 shares, uint256 minAssets]` | Transaction hash |
+| `multiVaultDeposit(config, { args, value })` | `args: [address receiver, bytes32 termId]` (curveId auto-detected) | Transaction hash |
 
 ### Read Functions
 
