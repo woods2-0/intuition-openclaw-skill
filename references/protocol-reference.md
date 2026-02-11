@@ -33,89 +33,103 @@ The EthMultiVault is the core contract. It manages all vaults in a single contra
 ### Atom Operations
 
 ```solidity
-// Create a single atom. atomUri is hex-encoded content (string, address, URI, or JSON-LD).
-// Returns the new atom vault ID. msg.value must cover atomCost.
-function createAtom(bytes calldata atomUri) external payable returns (uint256)
-
-// Batch create. Returns array of vault IDs.
-function batchCreateAtom(bytes[] calldata atomUris) external payable returns (uint256[])
+// Create atoms (always batch/plural). data is array of hex-encoded content.
+// assets is array of initial deposit amounts per atom.
+// Returns array of atom IDs (bytes32[]). msg.value must cover total costs.
+function createAtoms(bytes[] calldata data, uint256[] calldata assets)
+    external payable returns (bytes32[])
 ```
 
 ### Triple Operations
 
 ```solidity
-// Create a triple linking three existing atoms.
-// All three atom IDs must exist and must not be triple vaults themselves.
-// Returns the new triple vault ID. msg.value must cover tripleCost.
-function createTriple(uint256 subjectId, uint256 predicateId, uint256 objectId)
-    external payable returns (uint256)
-
-// Batch create. All arrays must have the same length.
-function batchCreateTriple(
-    uint256[] calldata subjectIds,
-    uint256[] calldata predicateIds,
-    uint256[] calldata objectIds
-) external payable returns (uint256[])
+// Create triples (always batch/plural). All arrays must have the same length.
+// All atom IDs must exist (use bytes32, not uint256).
+// assets is array of initial deposit amounts per triple.
+// Returns array of triple IDs (bytes32[]). msg.value must cover total costs.
+function createTriples(
+    bytes32[] calldata subjectIds,
+    bytes32[] calldata predicateIds,
+    bytes32[] calldata objectIds,
+    uint256[] calldata assets
+) external payable returns (bytes32[])
 ```
 
 ### Deposit (Staking)
 
 ```solidity
-// Deposit $TRUST into an atom vault. receiver gets the shares.
-function depositAtom(address receiver, uint256 id) external payable returns (uint256 shares)
-
-// Deposit into a triple vault (FOR position).
-// Automatically distributes a fraction to constituent atom vaults.
-function depositTriple(address receiver, uint256 id) external payable returns (uint256 shares)
+// Unified deposit function for BOTH atoms and triples.
+// curveId determines vault type:
+//   0 = atom vault
+//   1 = triple FOR vault (agreement)
+//   2 = triple AGAINST vault (counter-triple, disagreement)
+// msg.value is the deposit amount. Returns shares received.
+function deposit(
+    address receiver,
+    bytes32 termId,
+    uint256 curveId,
+    uint256 minShares
+) external payable returns (uint256 shares)
 
 // Batch deposit across multiple vaults.
-function batchDeposit(address receiver, uint256[] calldata termIds, uint256[] calldata amounts)
-    external payable returns (uint256[] memory)
+function depositBatch(
+    address receiver,
+    bytes32[] calldata termIds,
+    uint256[] calldata curveIds,
+    uint256[] calldata minShares
+) external payable returns (uint256[] memory)
 ```
 
 ### Redeem (Unstaking)
 
 ```solidity
-// Redeem shares from an atom vault. Returns $TRUST amount received.
-function redeemAtom(uint256 shares, address receiver, uint256 id)
-    external nonReentrant returns (uint256 assets)
+// Unified redeem function for BOTH atoms and triples.
+// curveId determines vault type (0=atom, 1=triple FOR, 2=triple AGAINST).
+// Returns $TRUST amount received.
+function redeem(
+    address receiver,
+    bytes32 termId,
+    uint256 curveId,
+    uint256 shares,
+    uint256 minAssets
+) external nonReentrant returns (uint256 assets)
 
-// Redeem from a triple vault.
-function redeemTriple(uint256 shares, address receiver, uint256 id)
-    external nonReentrant returns (uint256 assets)
+// Batch redeem across multiple vaults.
+function redeemBatch(
+    address receiver,
+    bytes32[] calldata termIds,
+    uint256[] calldata curveIds,
+    uint256[] calldata shares,
+    uint256[] calldata minAssets
+) external nonReentrant returns (uint256[] memory)
 ```
 
 ### View Functions
 
 ```solidity
-// Check if an atom or triple has been created
-function isTermCreated(uint256 termId) external view returns (bool)
+// Check if an atom or triple has been created (termId is bytes32)
+function isTermCreated(bytes32 termId) external view returns (bool)
 
 // Check if a term ID is specifically a triple
-function isTriple(uint256 termId) external view returns (bool)
+function isTriple(bytes32 termId) external view returns (bool)
 
-// Get raw atom data (the bytes that were passed to createAtom)
-function atom(uint256 atomId) external view returns (bytes memory)
+// Get raw atom data (the bytes that were passed to createAtoms)
+function atom(bytes32 atomId) external view returns (bytes memory)
 
-// Calculate the deterministic atom ID for given data
-function calculateAtomId(bytes calldata atomData) external view returns (uint256)
-
-// Calculate the deterministic triple ID for a subject-predicate-object combination
-function calculateTripleId(uint256 subjectId, uint256 predicateId, uint256 objectId)
-    external view returns (uint256)
-
-// Get the counter-triple ID (the AGAINST vault) for a triple
-function getCounterIdFromTripleId(uint256 tripleId) external view returns (uint256)
+// Get the counter-triple ID (the AGAINST vault) for a triple.
+// Both functions exist and are equivalent:
+function getCounterIdFromTripleId(bytes32 tripleId) external pure returns (bytes32)
+function getInverseTripleId(bytes32 tripleId) external view returns (bytes32)
 
 // Get vault state: totalShares and totalAssets for a given vault + curve
-function getVault(uint256 termId, uint256 curveId)
+function getVault(bytes32 termId, uint256 curveId)
     external view returns (uint256 totalShares, uint256 totalAssets)
 
-// Preview operations
-function convertToShares(uint256 assets, uint256 id) external view returns (uint256)
-function convertToAssets(uint256 shares, uint256 id) external view returns (uint256)
-function currentSharePrice(uint256 id) external view returns (uint256) // scaled by 1e18
-function maxRedeem(address sender, uint256 id) external view returns (uint256)
+// Preview operations (all take bytes32 termId, uint256 curveId)
+function convertToShares(uint256 assets, bytes32 termId, uint256 curveId) external view returns (uint256)
+function convertToAssets(uint256 shares, bytes32 termId, uint256 curveId) external view returns (uint256)
+function currentSharePrice(bytes32 termId, uint256 curveId) external view returns (uint256) // scaled by 1e18
+function maxRedeem(address sender, bytes32 termId, uint256 curveId) external view returns (uint256)
 ```
 
 ### Cost Functions
@@ -134,14 +148,24 @@ All functions take a config object as their first argument:
 - **ReadConfig:** `{ address: multiVaultAddress, publicClient }`
 - **WriteConfig:** `{ address: multiVaultAddress, publicClient, walletClient }`
 
+### curveId Parameter
+
+The curveId parameter specifies which vault curve to interact with:
+
+- **0** = Atom vault (default for atoms)
+- **1** = Triple FOR vault (agreement with the claim)
+- **2** = Triple AGAINST vault (counter-triple, disagreement with the claim)
+
+Each triple has two independent vaults (FOR and AGAINST), each with its own bonding curve and share price.
+
 ### Write Functions
 
 | Function | Args | Returns |
 |----------|------|---------|
 | `multiVaultCreateAtoms(config, { args, value })` | `args: [bytes[], uint256[]]` | Transaction hash |
-| `multiVaultCreateTriples(config, { args, value })` | `args: [uint256[], uint256[], uint256[], uint256[]]` | Transaction hash |
-| `multiVaultDeposit(config, { args, value })` | `args: [address receiver, uint256 termId]` | Transaction hash |
-| `multiVaultRedeem(config, { args })` | `args: [uint256 shares, address receiver, uint256 id]` | Transaction hash |
+| `multiVaultCreateTriples(config, { args, value })` | `args: [bytes32[], bytes32[], bytes32[], uint256[]]` | Transaction hash |
+| `multiVaultDeposit(config, { args, value })` | `args: [address receiver, bytes32 termId, uint256 curveId, uint256 minShares]` | Transaction hash |
+| `multiVaultRedeem(config, { args })` | `args: [address receiver, bytes32 termId, uint256 curveId, uint256 shares, uint256 minAssets]` | Transaction hash |
 
 ### Read Functions
 
@@ -149,9 +173,11 @@ All functions take a config object as their first argument:
 |----------|------|---------|
 | `multiVaultGetAtomCost(config)` | None | `BigInt` (cost in wei) |
 | `multiVaultGetTripleCost(config)` | None | `BigInt` (cost in wei) |
-| `multiVaultIsTriple(config, { args })` | `args: [uint256 termId]` | `boolean` |
-| `multiVaultGetAtom(config, { args })` | `args: [uint256 atomId]` | Atom data |
-| `multiVaultGetTriple(config, { args })` | `args: [uint256 tripleId]` | Triple data |
+| `multiVaultIsTriple(config, { args })` | `args: [bytes32 termId]` | `boolean` |
+| `multiVaultGetAtom(config, { args })` | `args: [bytes32 atomId]` | Atom data (bytes) |
+| `multiVaultGetTriple(config, { args })` | `args: [bytes32 tripleId]` | Triple data |
+| `multiVaultGetInverseTripleId(config, { args })` | `args: [bytes32 tripleId]` | `bytes32` counter-triple ID |
+| `multiVaultGetVault(config, { args })` | `args: [bytes32 termId, uint256 curveId]` | `{ totalShares, totalAssets }` |
 
 ### Event Parsing
 

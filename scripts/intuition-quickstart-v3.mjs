@@ -59,6 +59,19 @@ if (!AGENT_NAME || args.includes('--help') || args.includes('-h')) {
   process.exit(0);
 }
 
+// Validate agent name (prevent path traversal)
+if (!/^[a-zA-Z0-9_-]+$/.test(AGENT_NAME)) {
+  console.error('Error: Agent name can only contain letters, numbers, hyphens, and underscores');
+  process.exit(1);
+}
+
+// Validate stake amount
+const stakeFloat = parseFloat(STAKE_AMOUNT);
+if (isNaN(stakeFloat) || !isFinite(stakeFloat) || stakeFloat <= 0) {
+  console.error('Error: Stake amount must be a positive number');
+  process.exit(1);
+}
+
 const walletDir = join(process.env.HOME, `.intuition-wallet-${AGENT_NAME}`);
 const walletFile = join(walletDir, 'wallet.json');
 const outputFile = join(walletDir, 'identity.json');
@@ -275,6 +288,7 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('Error:', err.message);
+  const msg = (err.message || '').replace(/0x[a-fA-F0-9]{64}/g, '0x[REDACTED]');
+  console.error('Error:', msg);
   process.exit(1);
 });

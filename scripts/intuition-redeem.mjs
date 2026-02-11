@@ -67,7 +67,7 @@ async function main() {
     walletPath = args[walletIdx + 1];
   }
 
-  if (!termId.startsWith('0x') || termId.length !== 66) {
+  if (!/^0x[a-fA-F0-9]{64}$/.test(termId)) {
     console.error('Error: Invalid term ID (must be 0x + 64 hex chars)');
     process.exit(1);
   }
@@ -183,24 +183,17 @@ async function main() {
   console.log('Current value:', formatEther(currentValue), '$TRUST');
   console.log('Share price:', formatEther(sharePrice), '$TRUST');
 
+  // curveId: 0 = atom vault, 1 = triple FOR vault
+  const curveId = isTriple ? 1n : 0n;
+
   console.log(`\nRedeeming ${sharesToRedeem.toString()} shares...`);
 
-  let hash;
-  if (isTriple) {
-    hash = await walletClient.writeContract({
-      address: multiVaultAddress,
-      abi: MultiVaultAbi,
-      functionName: 'redeemTriple',
-      args: [sharesToRedeem, account.address, termId],
-    });
-  } else {
-    hash = await walletClient.writeContract({
-      address: multiVaultAddress,
-      abi: MultiVaultAbi,
-      functionName: 'redeemAtom',
-      args: [sharesToRedeem, account.address, termId],
-    });
-  }
+  const hash = await walletClient.writeContract({
+    address: multiVaultAddress,
+    abi: MultiVaultAbi,
+    functionName: 'redeem',
+    args: [account.address, termId, curveId, sharesToRedeem, 0n],
+  });
 
   console.log('  TX:', hash);
 
@@ -218,6 +211,7 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('Error:', err.message);
+  const msg = (err.message || '').replace(/0x[a-fA-F0-9]{64}/g, '0x[REDACTED]');
+  console.error('Error:', msg);
   process.exit(1);
 });

@@ -179,6 +179,7 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('Error:', err.message);
+  const msg = (err.message || '').replace(/0x[a-fA-F0-9]{64}/g, '0x[REDACTED]');
+  console.error('Error:', msg);
   process.exit(1);
 });

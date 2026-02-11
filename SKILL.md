@@ -633,17 +633,18 @@ const expectedValue = await publicClient.readContract({
   args: [maxShares, termId],
 });
 
-// Redeem (use redeemAtom for atoms, redeemTriple for triples)
+// Redeem — unified function with curveId (0=atom, 1=triple FOR, 2=triple AGAINST)
 const isTriple = await publicClient.readContract({
   address: multiVaultAddress, abi: MultiVaultAbi,
   functionName: 'isTriple',
   args: [termId],
 });
 
+const curveId = isTriple ? 1n : 0n;
 const hash = await walletClient.writeContract({
   address: multiVaultAddress, abi: MultiVaultAbi,
-  functionName: isTriple ? 'redeemTriple' : 'redeemAtom',
-  args: [maxShares, account.address, termId],
+  functionName: 'redeem',
+  args: [account.address, termId, curveId, maxShares, 0n], // last arg = minAssets
 });
 ```
 
@@ -755,10 +756,11 @@ const value = await publicClient.readContract({
 console.log(`Position: ${shares} shares, worth ${formatEther(value)} $TRUST`);
 
 // --- REDEEM: Withdraw all shares ---
+// curveId 0 = atom vault, 1 = triple FOR, 2 = triple AGAINST
 const redeemTx = await walletClient.writeContract({
   address: multiVaultAddress, abi: MultiVaultAbi,
-  functionName: 'redeemAtom',
-  args: [shares, account.address, atomId],
+  functionName: 'redeem',
+  args: [account.address, atomId, 0n, shares, 0n], // curveId=0 for atom, minAssets=0
 });
 console.log('Redeemed, tx:', redeemTx);
 ```

@@ -60,8 +60,14 @@ async function main() {
     walletPath = args[walletIdx + 1];
   }
 
-  if (!termId.startsWith('0x') || termId.length !== 66) {
+  if (!/^0x[a-fA-F0-9]{64}$/.test(termId)) {
     console.error('Error: Invalid term ID (must be 0x + 64 hex chars)');
+    process.exit(1);
+  }
+
+  const amountFloat = parseFloat(amount);
+  if (isNaN(amountFloat) || !isFinite(amountFloat) || amountFloat <= 0) {
+    console.error('Error: Amount must be a positive number');
     process.exit(1);
   }
 
@@ -196,6 +202,7 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('Error:', err.message);
+  const msg = (err.message || '').replace(/0x[a-fA-F0-9]{64}/g, '0x[REDACTED]');
+  console.error('Error:', msg);
   process.exit(1);
 });
