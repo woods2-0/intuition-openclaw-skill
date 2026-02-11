@@ -3,6 +3,25 @@
   "version": "1.0.0",
   "description": "OpenClaw skill for the Intuition protocol — teach AI agents to build on-chain identity, trust, and reputation",
   "type": "module",
+  "license": "MIT",
+  "author": "Intuition Community Sub-DAO",
+  "homepage": "https://github.com/woods2-0/intuition-openclaw-skill#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/woods2-0/intuition-openclaw-skill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/woods2-0/intuition-openclaw-skill/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "intuition",
+    "ai-agent",
+    "web3",
+    "knowledge-graph",
+    "trust",
+    "attestation"
+  ],
   "scripts": {
     "test": "node scripts/test-skill.mjs"
   },
