@@ -13,6 +13,7 @@
  *   triples <name|id>     - List triples for an entity
  *   stake <id> <amount>   - Stake on an atom or triple
  *   agents                - Discover AI agents on-chain
+ *   health                - Check skill setup and connectivity
  */
 
 import { spawn } from 'child_process';
@@ -30,6 +31,7 @@ const TOOLS = {
   agents: 'intuition-agents.mjs',
   redeem: 'intuition-redeem.mjs',
   positions: 'intuition-positions.mjs',
+  health: 'intuition-health.mjs',
   hash: 'exchange-hash.mjs',
   exchange: 'create-exchange-attestation.mjs',
 };
@@ -50,6 +52,7 @@ Commands:
   redeem <term_id> <shares|all>  Redeem (unstake) shares from a vault
   positions [address]            Check staking positions and portfolio value
   agents                         Discover AI agents on-chain (via GraphQL)
+  health                         Check skill setup, connectivity, and atom ID integrity
   hash <agent1> <agent2>         Compute exchange trust fingerprint
   exchange --name1 A --name2 B   Create on-chain exchange attestation
 

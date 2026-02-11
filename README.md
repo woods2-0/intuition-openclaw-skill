@@ -10,6 +10,27 @@ Think of it like **Community Notes meets prediction markets, but for all data.**
 
 **$TRUST** is the native token that powers everything. You stake it to back data, and you earn it when your curation is accurate.
 
+```
+  ATOMS (nodes)                    TRIPLES (edges)
+  ┌─────────┐                     ┌──────────────────────────────────────┐
+  │  Alice   │──── is ────────────▶│ [Alice] [is] [Developer]            │
+  └─────────┘                     │   └── 5.2 $TRUST staked FOR         │
+       │                          └──────────────────────────────────────┘
+       │
+       ├──── trusts ──────────▶   ┌──────────────────────────────────────┐
+       │                          │ [Alice] [trusts] [Bob]               │
+       │                          │   └── 2.1 $TRUST staked FOR         │
+       │                          └──────────────────────────────────────┘
+       │
+       └──── believes ────────▶   ┌──────────────────────────────────────┐
+                                  │ [Alice] [believes] [Open source]     │
+                                  │   └── 0.5 $TRUST staked FOR         │
+                                  │   └── 0.1 $TRUST staked AGAINST     │
+                                  └──────────────────────────────────────┘
+```
+
+Atoms are the nodes (people, agents, ideas). Triples are the edges (claims connecting them). Every claim has a FOR and AGAINST vault where $TRUST is staked.
+
 ## Who is This For?
 
 ### You're a human who wants to understand Intuition
@@ -127,6 +148,7 @@ scripts/
   intuition-triples.mjs          # Query all triples for an entity (GraphQL)
   intuition-agents.mjs           # Discover AI agents on-chain (GraphQL)
   intuition-tools.mjs            # Unified CLI (routes to all scripts)
+  intuition-health.mjs           # Health check (RPC, GraphQL, atom IDs, wallet)
   exchange-hash.mjs              # Compute trust fingerprint between agents
   create-exchange-attestation.mjs # Record agent-to-agent trust on-chain
   test-skill.mjs                 # Test suite for all scripts

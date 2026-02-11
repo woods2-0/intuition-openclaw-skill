@@ -55,6 +55,8 @@ Think of it as **Community Notes meets prediction markets, but for all data**. E
 
 5. **You're operational.** Start creating claims, staking on data, and managing positions.
 
+**Deep dive:** See `references/protocol-reference.md` for full SDK API and vault mechanics, `references/patterns.md` for integration strategies and speculative curation, `references/graphql-reference.md` for the complete query catalog.
+
 **First-time agent?** Verify this skill works right now: `node scripts/intuition-query.mjs "Axiom"` — no setup needed.
 
 ## Core Concepts
@@ -758,6 +760,7 @@ For detailed speculation strategies, see `references/patterns.md` → Speculativ
 | `intuition-triples.mjs` | Query all triples for an entity via GraphQL | Exploring relationships and claims |
 | `intuition-agents.mjs` | Discover AI agents on-chain via GraphQL | Finding agents in the knowledge graph |
 | `intuition-tools.mjs` | Unified CLI (routes to other scripts) | Quick access to any command |
+| `intuition-health.mjs` | Health check — connectivity, atom IDs, wallet | Verifying setup before first use |
 | `exchange-hash.mjs` | Compute trust fingerprint between two agents | Privacy-preserving interaction proof |
 | `create-exchange-attestation.mjs` | Create on-chain exchange attestation | Recording agent-to-agent trust |
 

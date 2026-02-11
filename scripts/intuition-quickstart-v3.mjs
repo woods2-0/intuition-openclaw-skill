@@ -31,6 +31,7 @@ import { join } from 'path';
 
 // Known protocol atoms — see references/protocol-reference.md for full list
 // These IDs are deterministic: calculateAtomId(stringToHex("is")) always returns the same value
+// Verify with: node scripts/intuition-health.mjs (checks all IDs against on-chain contract)
 const KNOWN_ATOMS = {
   'is': '0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1',
   'AI Agent': '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e',

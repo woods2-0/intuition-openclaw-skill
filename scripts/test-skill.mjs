@@ -83,6 +83,13 @@ const TESTS = [
     expectOutput: 'intuition-positions',
     expectCode: 0,
   },
+  {
+    name: 'intuition-health --help',
+    script: 'intuition-health.mjs',
+    args: ['--help'],
+    expectOutput: 'intuition-health',
+    expectCode: 0,
+  },
 ];
 
 // If a test entity is provided, add live query tests
