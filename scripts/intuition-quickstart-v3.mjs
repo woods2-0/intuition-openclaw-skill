@@ -29,8 +29,8 @@ import {
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-// Known atom IDs — deterministic hashes derived from calculateAtomId(stringToHex("label"))
-// These are permanent and can be verified: the same string always produces the same ID.
+// Known protocol atoms — see references/protocol-reference.md for full list
+// These IDs are deterministic: calculateAtomId(stringToHex("is")) always returns the same value
 const KNOWN_ATOMS = {
   'is': '0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1',
   'AI Agent': '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e',
@@ -145,10 +145,11 @@ async function main() {
   console.log(`   Total needed: ~${formatEther(totalNeeded)} $TRUST`);
 
   if (balance < totalNeeded) {
-    console.log('Insufficient balance!');
+    console.log(`Insufficient balance! Need ${formatEther(totalNeeded - balance)} more $TRUST`);
     console.log(`  1. Bridge $TRUST from Base: https://app.intuition.systems/bridge`);
     console.log(`  2. Send to: ${address}`);
     console.log(`  3. Re-run this script`);
+    console.log(`  See SKILL.md → "How to Get $TRUST" for step-by-step instructions`);
 
     const output = {
       agent: AGENT_NAME,

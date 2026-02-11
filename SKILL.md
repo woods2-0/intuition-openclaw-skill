@@ -15,10 +15,6 @@ Think of it as **Community Notes meets prediction markets, but for all data**. E
 
 **Why it matters for agents:** When your agent needs to decide whether to trust an address, verify a capability claim, or assess an entity's reputation, Intuition provides cryptoeconomically-backed trust signals -- not just social votes, but real economic commitment.
 
-## Path Notes
-
-**`{baseDir}`** refers to the root directory of this skill -- wherever SKILL.md lives. All scripts are in `{baseDir}/scripts/` and references in `{baseDir}/references/`. If you cloned this as a git repo, `{baseDir}` is the repo root. If you received this as a directory, it's that directory. **For agents:** resolve `{baseDir}` to the absolute path of the directory containing this SKILL.md file.
-
 ## Terminology
 
 | Term | Definition |
@@ -36,21 +32,28 @@ Think of it as **Community Notes meets prediction markets, but for all data**. E
 
 ## Getting Started (Zero to Operational)
 
-**Just want to read data?** You need nothing. The GraphQL API at `https://mainnet.intuition.sh/v1/graphql` requires no auth, no wallet, no setup. Skip to the Task Guide and start querying.
+**IMPORTANT: You can start using this skill RIGHT NOW for read operations. Wallet setup is only needed for writes.**
 
-**Want to write data (create identities, make claims, stake)?** Follow this path:
+### Path A: Read-Only (zero setup, works immediately)
+- No wallet needed
+- No $TRUST needed
+- No `npm install` needed (for GraphQL queries)
+- Run: `node scripts/intuition-query.mjs "EntityName"`
+- Run: `node scripts/intuition-agents.mjs`
 
-1. **Wallet:** Do you already have an EVM wallet (Ethereum, Base, Arbitrum, etc.)?
-   - **Yes** → Set `export INTUITION_PRIVATE_KEY=0x_your_existing_key`. You're done with this step. Any standard EVM private key works on Intuition -- it's the same key format.
-   - **No** → The quickstart script generates one automatically. Or generate one with `viem` (see Wallet & Environment Setup below).
+### Path B: Write Operations (full setup required)
 
-2. **Fund with $TRUST:** Your wallet needs $TRUST on the Intuition L3. See "How to Get $TRUST" below for step-by-step instructions (buy on Coinbase, swap on Uniswap, or bridge from Base).
+1. **Install dependencies:** `npm install` in this skill's directory
 
-3. **Install:** Run `npm install` in this skill's directory.
+2. **Wallet:** Do you already have an EVM wallet (Ethereum, Base, Arbitrum, etc.)?
+   - **Yes** → Set `export INTUITION_PRIVATE_KEY=0x_your_existing_key`. Any standard EVM private key works -- it's the same format across all EVM chains.
+   - **No** → The quickstart script generates one automatically. Or generate with `viem` (see Wallet & Environment Setup below).
 
-4. **Onboard:** Run `node {baseDir}/scripts/intuition-quickstart-v3.mjs "YourName" 0.5` to create your on-chain identity. This creates your identity Atom, asserts `[YourName] [is] [AI Agent]`, and stakes 0.5 $TRUST on the claim.
+3. **Fund with $TRUST:** Your wallet needs $TRUST on the Intuition L3. See "How to Get $TRUST" below for step-by-step: buy on Coinbase → bridge from Base → done.
 
-5. **You're operational.** Start creating claims, staking on data, querying the knowledge graph, and managing positions.
+4. **Onboard:** Run `node scripts/intuition-quickstart-v3.mjs "YourName" 0.5` to create your on-chain identity. This creates your Atom, asserts `[YourName] [is] [AI Agent]`, and stakes 0.5 $TRUST.
+
+5. **You're operational.** Start creating claims, staking on data, and managing positions.
 
 ## Core Concepts
 
@@ -83,6 +86,12 @@ Examples:
 - `[Veritas] [believes] [Reputation cannot be assigned, only earned]`
 
 Each Triple has **two vaults** -- a FOR vault (agreeing with the claim) and an AGAINST vault (disputing it). This creates a market for every claim.
+
+**FOR vs AGAINST vaults:** Each Triple has **two independent vaults**:
+- **FOR vault (curveId 1):** Staking here signals agreement with the claim
+- **AGAINST vault (curveId 2):** Staking here signals disagreement (the counter-triple)
+
+When you create a triple, you get ONE triple ID. The FOR vault uses that ID directly. The AGAINST vault uses a different ID (get it via `getCounterIdFromTripleId`). Both vaults have their own bonding curves and share prices.
 
 **Key insight:** The predicate is itself an Atom. Anyone can create new predicates (`trusts`, `collaboratesWith`, `believes`, `seeks`), making the vocabulary extensible.
 
@@ -136,6 +145,25 @@ All Atoms (nodes) and Triples (edges), weighted by $TRUST stakes, form a queryab
 - Check community consensus on claims
 - Discover entities by their connections
 - Evaluate trust based on economic signals, not just social ones
+
+## When to Use What
+
+**Quick decision tree:**
+
+```
+Do you need to WRITE data (create atoms, stake, redeem)?
+├─ NO → Use GraphQL (no wallet, no gas, instant results)
+│       Example: node scripts/intuition-query.mjs "EntityName"
+│
+└─ YES → Need wallet with $TRUST on Intuition L3
+         ├─ Creating atoms/triples → SDK wrappers (multiVaultCreateAtoms, multiVaultCreateTriples)
+         ├─ Staking (deposit) → SDK wrapper (multiVaultDeposit with [receiver, termId])
+         └─ Unstaking (redeem) → Raw contract (walletClient.writeContract with explicit curveId)
+```
+
+**GraphQL vs SDK:**
+- **GraphQL:** Discovery, exploration, aggregation (find entities, traverse relationships, sum stakes)
+- **SDK/Contract:** Verification (check if atom exists), write operations (create, stake, redeem)
 
 ## Quick Reference
 
@@ -241,7 +269,19 @@ const walletClient = createWalletClient({
 const multiVaultAddress = getMultiVaultAddressFromChainId(intuitionMainnet.id);
 ```
 
-**SDK wrappers vs raw contract calls:** The SDK provides convenience functions like `multiVaultDeposit` that auto-detect atom vs triple and handle the `curveId` parameter for you — just pass `[receiver, termId]`. For redeeming, there is no SDK wrapper — use `walletClient.writeContract` with the raw `MultiVaultAbi` and explicit `curveId` (0=atom, 1=triple FOR, 2=triple AGAINST). See the redeem section below for examples.
+### SDK Wrappers vs Raw Contract Calls
+
+**IMPORTANT:** The SDK provides two levels of interaction:
+
+1. **SDK wrapper functions** (deposits only):
+   - `multiVaultDeposit(config, { args: [receiver, termId], value })` — Auto-detects atom vs triple, handles curveId internally
+   - `multiVaultCreateAtoms`, `multiVaultCreateTriples` — Thin wrappers around raw contract
+
+2. **Raw contract calls** (redeems and advanced operations):
+   - Use `walletClient.writeContract({ address, abi: MultiVaultAbi, functionName, args })`
+   - Requires explicit `curveId` parameter (0=atom, 1=triple FOR, 2=triple AGAINST)
+
+**Why this matters:** If you try to call `multiVaultRedeem`, it doesn't exist. Use the raw contract method shown in "I want to redeem" below.
 
 ## Task Guide
 
@@ -251,7 +291,7 @@ This creates an Atom for the agent, asserts `[Agent] [is] [AI Agent]`, and stake
 
 **Using the quickstart script (recommended):**
 ```bash
-node {baseDir}/scripts/intuition-quickstart-v3.mjs "MyAgentName" 0.5
+node scripts/intuition-quickstart-v3.mjs "MyAgentName" 0.5
 ```
 
 This will:
@@ -346,10 +386,10 @@ You can create new predicates by creating a string Atom (e.g., `"trusts"`, `"rec
 **Using the query script:**
 ```bash
 # By name
-node {baseDir}/scripts/intuition-query.mjs --name "EntityName"
+node scripts/intuition-query.mjs --name "EntityName"
 
 # By Atom ID
-node {baseDir}/scripts/intuition-query.mjs --id "0x<atom-id>"
+node scripts/intuition-query.mjs --id "0x<atom-id>"
 ```
 
 This checks if the entity exists on-chain and shows known Triples with stake amounts.
@@ -403,18 +443,16 @@ The GraphQL API is the best way to discover relationships you don't already know
 
 Staking deposits $TRUST to signal conviction. For **atoms**, this signals relevance. For **triples**, you can stake FOR (agreement) or AGAINST (disagreement).
 
-**SDK wrapper vs raw contract:** The SDK helper `multiVaultDeposit` auto-detects atom vs triple and handles the curveId parameter internally — you just pass `[receiver, termId]`. For AGAINST stakes, resolve the counter-triple ID first and pass it as the termId. For redeeming, there is no SDK wrapper — use `walletClient.writeContract` with the raw ABI and explicit curveId (see "I want to redeem" below).
-
 **Using the stake script:**
 ```bash
 # Stake on an atom (signal relevance)
-node {baseDir}/scripts/intuition-stake.mjs 0x<atom-id> 0.5
+node scripts/intuition-stake.mjs 0x<atom-id> 0.5
 
 # Stake FOR a triple (agreement)
-node {baseDir}/scripts/intuition-stake.mjs 0x<triple-id> 0.5
+node scripts/intuition-stake.mjs 0x<triple-id> 0.5
 
 # Stake AGAINST a triple (disagreement)
-node {baseDir}/scripts/intuition-stake.mjs 0x<triple-id> 0.5 --against
+node scripts/intuition-stake.mjs 0x<triple-id> 0.5 --against
 ```
 
 The script auto-detects whether the term is an atom or triple.
@@ -451,7 +489,7 @@ await multiVaultDeposit(
 ### I want to verify an agent's identity
 
 ```bash
-node {baseDir}/scripts/intuition-verify.mjs AgentName
+node scripts/intuition-verify.mjs AgentName
 ```
 
 This checks whether:
@@ -532,15 +570,15 @@ const strongSignal = stakeAmount > 1.0 && sentiment > 0.8;
 
 **Discover AI agents on-chain:**
 ```bash
-node {baseDir}/scripts/intuition-agents.mjs
-node {baseDir}/scripts/intuition-agents.mjs --json
-node {baseDir}/scripts/intuition-agents.mjs --predicate "collaboratesWith"  # custom predicate
+node scripts/intuition-agents.mjs
+node scripts/intuition-agents.mjs --json
+node scripts/intuition-agents.mjs --predicate "collaboratesWith"  # custom predicate
 ```
 
 **Query triples for an entity:**
 ```bash
-node {baseDir}/scripts/intuition-triples.mjs AgentName
-node {baseDir}/scripts/intuition-triples.mjs AgentName --json
+node scripts/intuition-triples.mjs AgentName
+node scripts/intuition-triples.mjs AgentName --json
 ```
 
 **GraphQL exploration (most powerful):**
@@ -584,13 +622,13 @@ See what you're staked on, how many shares you hold, and the current value:
 **Using the positions script:**
 ```bash
 # Check positions for the wallet in INTUITION_PRIVATE_KEY
-node {baseDir}/scripts/intuition-positions.mjs
+node scripts/intuition-positions.mjs
 
 # Check a specific address
-node {baseDir}/scripts/intuition-positions.mjs 0x<address>
+node scripts/intuition-positions.mjs 0x<address>
 
 # JSON output (for programmatic use)
-node {baseDir}/scripts/intuition-positions.mjs --json
+node scripts/intuition-positions.mjs --json
 ```
 
 **Using GraphQL:**
@@ -635,10 +673,10 @@ Redeeming converts your shares back to $TRUST. You can redeem all shares or a pa
 **Using the redeem script:**
 ```bash
 # Redeem all shares from a vault
-node {baseDir}/scripts/intuition-redeem.mjs 0x<term-id> all
+node scripts/intuition-redeem.mjs 0x<term-id> all
 
 # Redeem a specific number of shares
-node {baseDir}/scripts/intuition-redeem.mjs 0x<term-id> 500000000000000000
+node scripts/intuition-redeem.mjs 0x<term-id> 500000000000000000
 ```
 
 The script auto-detects atom vs triple and calls the correct contract method. It shows your current position and expected $TRUST before executing.

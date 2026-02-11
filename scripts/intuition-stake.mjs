@@ -162,7 +162,8 @@ async function main() {
 
   if (balance < stakeAmount) {
     console.error(`Insufficient balance. Need ${amount} $TRUST but have ${formatEther(balance)}`);
-    console.error('See "How to Get $TRUST" in SKILL.md, or bridge from Base: https://app.intuition.systems/bridge');
+    console.error('Bridge $TRUST from Base: https://app.intuition.systems/bridge');
+    console.error('See SKILL.md → "How to Get $TRUST" for step-by-step instructions');
     process.exit(1);
   }
 

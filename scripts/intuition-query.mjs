@@ -139,8 +139,8 @@ async function main() {
   // Check common identity triples
   console.log('\n--- Identity Claims ---');
 
-  // Known protocol atoms (deterministic — derived from calculateAtomId(stringToHex("label")))
-  // Verify: node -e "import('viem').then(v => console.log(v.keccak256(v.toHex('is'))))"
+  // Known protocol atoms — see references/protocol-reference.md for full list
+  // Deterministic: calculateAtomId(stringToHex("is")) always returns the same value
   const isPredicateId = '0xb0681668ca193e8608b43adea19fecbbe0828ef5afc941cef257d30a20564ef1';
   const aiAgentId = '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e';
   const collaboratesWithId = '0xb3cf9e60665fe7674e3798d2452604431d4d4dc96aa8d6965016205d00e45c8e';
