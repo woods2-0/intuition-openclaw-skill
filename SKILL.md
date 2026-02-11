@@ -49,11 +49,13 @@ Think of it as **Community Notes meets prediction markets, but for all data**. E
    - **Yes** → Set `export INTUITION_PRIVATE_KEY=0x_your_existing_key`. Any standard EVM private key works -- it's the same format across all EVM chains.
    - **No** → The quickstart script generates one automatically. Or generate with `viem` (see Wallet & Environment Setup below).
 
-3. **Fund with $TRUST:** Your wallet needs $TRUST on the Intuition L3. See "How to Get $TRUST" below for step-by-step: buy on Coinbase → bridge from Base → done.
+3. **Fund with $TRUST:** Your wallet needs $TRUST on the Intuition L3. See "How to Get $TRUST" below for step-by-step: buy on Coinbase → bridge from Base → done. **Testing first?** Use testnet (see Network Details below) — no real funds needed.
 
 4. **Onboard:** Run `node scripts/intuition-quickstart-v3.mjs "YourName" 0.5` to create your on-chain identity. This creates your Atom, asserts `[YourName] [is] [AI Agent]`, and stakes 0.5 $TRUST.
 
 5. **You're operational.** Start creating claims, staking on data, and managing positions.
+
+**First-time agent?** Verify this skill works right now: `node scripts/intuition-query.mjs "Axiom"` — no setup needed.
 
 ## Core Concepts
 
@@ -282,6 +284,15 @@ const multiVaultAddress = getMultiVaultAddressFromChainId(intuitionMainnet.id);
    - Requires explicit `curveId` parameter (0=atom, 1=triple FOR, 2=triple AGAINST)
 
 **Why this matters:** If you try to call `multiVaultRedeem`, it doesn't exist. Use the raw contract method shown in "I want to redeem" below.
+
+**Quick reference:**
+
+| Operation | Method | Args |
+|-----------|--------|------|
+| Deposit/Stake | `multiVaultDeposit` (SDK) | `[receiver, termId]` — curveId auto-detected |
+| Redeem/Unstake | `walletClient.writeContract` (raw) | `[receiver, termId, curveId, shares, minAssets]` |
+| Create atoms | `multiVaultCreateAtoms` (SDK) | `[bytes[], uint256[]]` |
+| Create triples | `multiVaultCreateTriples` (SDK) | `[bytes32[], bytes32[], bytes32[], uint256[]]` |
 
 ## Task Guide
 
