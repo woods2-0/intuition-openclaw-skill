@@ -226,20 +226,20 @@ How to use Intuition's bonding curve mechanics to identify undervalued claims an
 query FindOpportunities($minPositions: Int = 1, $maxShares: numeric = "1000000000000000000") {
   triples(
     where: {
-      vault: {
+      triple_vault: {
         total_shares: { _lt: $maxShares }
         position_count: { _gte: $minPositions }
       }
     }
-    order_by: { vault: { position_count: desc } }
+    order_by: { triple_vault: { position_count: desc } }
     limit: 20
   ) {
-    id
+    term_id
     subject { label }
     predicate { label }
     object { label }
-    vault { total_shares position_count current_share_price }
-    counter_vault { total_shares }
+    triple_vault { total_shares position_count }
+    counter_term_id
   }
 }
 ```

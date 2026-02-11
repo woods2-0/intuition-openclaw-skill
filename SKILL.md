@@ -359,20 +359,16 @@ const atomData = await publicClient.readContract({
 ```graphql
 # Endpoint: https://mainnet.intuition.sh/v1/graphql (no auth required)
 
-query GetAtomDetails($id: numeric!) {
-  atoms(where: { id: { _eq: $id } }) {
-    id
+query GetAtomDetails($id: String!) {
+  atoms(where: { term_id: { _eq: $id } }) {
+    term_id
     label
     type
-    vault {
-      total_shares
-      position_count
-    }
     as_subject_triples {
+      term_id
       predicate { label }
       object { label }
-      vault { total_shares }
-      counter_vault { total_shares }
+      triple_vault { total_shares }
     }
   }
 }
@@ -527,17 +523,19 @@ node {baseDir}/scripts/intuition-triples.mjs AgentName --json
 # Find all claims about an entity
 query ExploreEntity($label: String!) {
   atoms(where: { label: { _ilike: $label } }) {
-    id
+    term_id
     label
     as_subject_triples {
+      term_id
       predicate { label }
       object { label }
-      vault { total_shares }
+      triple_vault { total_shares }
     }
     as_object_triples {
+      term_id
       subject { label }
       predicate { label }
-      vault { total_shares }
+      triple_vault { total_shares }
     }
   }
 }
@@ -545,7 +543,7 @@ query ExploreEntity($label: String!) {
 # Search across everything
 query GlobalSearch($query: String!) {
   atoms(where: { label: { _ilike: $query } }, limit: 20) {
-    id
+    term_id
     label
     type
   }
@@ -583,11 +581,14 @@ query GetPositions($address: String!) {
       total_shares
       total_assets
       current_share_price
-      atom { label }
-      triple {
-        subject { label }
-        predicate { label }
-        object { label }
+      term {
+        type
+        atom { label }
+        triple {
+          subject { label }
+          predicate { label }
+          object { label }
+        }
       }
     }
   }

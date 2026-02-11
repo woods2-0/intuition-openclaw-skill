@@ -34,19 +34,14 @@ const { data } = await response.json();
 ### Atoms
 
 ```graphql
-# Get a specific atom by ID
-query GetAtom($id: numeric!) {
-  atoms(where: { id: { _eq: $id } }) {
-    id
+# Get a specific atom by term_id
+query GetAtom($id: String!) {
+  atoms(where: { term_id: { _eq: $id } }) {
+    term_id
     label
     type
     emoji
     image
-    vault {
-      total_shares
-      position_count
-      current_share_price
-    }
     creator {
       id
       label
@@ -59,44 +54,36 @@ query SearchAtoms($query: String!, $limit: Int = 20) {
   atoms(
     where: { label: { _ilike: $query } }
     limit: $limit
-    order_by: { vault: { total_shares: desc } }
   ) {
-    id
+    term_id
     label
     type
-    vault { total_shares position_count }
   }
 }
 
 # Get atom with all its relationships
-query GetAtomDetails($id: numeric!) {
-  atoms(where: { id: { _eq: $id } }) {
-    id
+query GetAtomDetails($id: String!) {
+  atoms(where: { term_id: { _eq: $id } }) {
+    term_id
     label
     type
-    vault {
-      total_shares
-      position_count
-    }
     as_subject_triples {
-      id
-      predicate { id label }
-      object { id label }
-      vault { total_shares }
-      counter_vault { total_shares }
+      term_id
+      predicate { term_id label }
+      object { term_id label }
+      triple_vault { total_shares }
     }
     as_object_triples {
-      id
-      subject { id label }
-      predicate { id label }
-      vault { total_shares }
-      counter_vault { total_shares }
+      term_id
+      subject { term_id label }
+      predicate { term_id label }
+      triple_vault { total_shares }
     }
     as_predicate_triples {
-      id
-      subject { id label }
-      object { id label }
-      vault { total_shares }
+      term_id
+      subject { term_id label }
+      object { term_id label }
+      triple_vault { total_shares }
     }
   }
 }
@@ -104,7 +91,7 @@ query GetAtomDetails($id: numeric!) {
 # Get atoms by data content (e.g., find atom for a specific string)
 query GetAtomByData($data: String!) {
   atoms(where: { data: { _eq: $data } }) {
-    id
+    term_id
     label
     type
   }
@@ -115,57 +102,55 @@ query GetAtomByData($data: String!) {
 
 ```graphql
 # Get a specific triple
-query GetTriple($id: numeric!) {
-  triples(where: { id: { _eq: $id } }) {
-    id
-    subject { id label }
-    predicate { id label }
-    object { id label }
-    vault { total_shares position_count }
-    counter_vault { total_shares position_count }
+query GetTriple($id: String!) {
+  triples(where: { term_id: { _eq: $id } }) {
+    term_id
+    subject { term_id label }
+    predicate { term_id label }
+    object { term_id label }
+    triple_vault { total_shares position_count }
+    counter_term_id
     creator { id label }
   }
 }
 
 # Find triples by subject
-query GetTriplesForSubject($subjectId: numeric!, $limit: Int = 50) {
+query GetTriplesForSubject($subjectId: String!, $limit: Int = 50) {
   triples(
     where: { subject_id: { _eq: $subjectId } }
     limit: $limit
-    order_by: { vault: { total_shares: desc } }
   ) {
-    id
-    predicate { id label }
-    object { id label }
-    vault { total_shares }
-    counter_vault { total_shares }
+    term_id
+    predicate { term_id label }
+    object { term_id label }
+    triple_vault { total_shares }
   }
 }
 
 # Find specific triple by subject + predicate + object
-query FindTriple($subjectId: numeric!, $predicateId: numeric!, $objectId: numeric!) {
+query FindTriple($subjectId: String!, $predicateId: String!, $objectId: String!) {
   triples(where: {
     subject_id: { _eq: $subjectId }
     predicate_id: { _eq: $predicateId }
     object_id: { _eq: $objectId }
   }) {
-    id
-    vault { total_shares position_count }
-    counter_vault { total_shares position_count }
+    term_id
+    triple_vault { total_shares position_count }
+    counter_term_id
   }
 }
 
 # Get most-staked triples (trending claims)
 query TrendingTriples($limit: Int = 20) {
   triples(
-    order_by: { vault: { total_shares: desc } }
+    order_by: { triple_vault: { total_shares: desc } }
     limit: $limit
   ) {
-    id
+    term_id
     subject { label }
     predicate { label }
     object { label }
-    vault { total_shares position_count }
+    triple_vault { total_shares position_count }
   }
 }
 ```
@@ -183,22 +168,26 @@ query GetPositions($address: String!, $limit: Int = 50) {
     id
     shares
     vault {
-      atom { id label }
-      triple {
-        subject { label }
-        predicate { label }
-        object { label }
-      }
       total_shares
       total_assets
+      current_share_price
+      term {
+        type
+        atom { label }
+        triple {
+          subject { label }
+          predicate { label }
+          object { label }
+        }
+      }
     }
   }
 }
 
-# Get positions on a specific triple
-query GetTriplePositions($tripleId: numeric!, $limit: Int = 20) {
+# Get positions on a specific term
+query GetTermPositions($termId: String!, $limit: Int = 20) {
   positions(
-    where: { vault: { triple_id: { _eq: $tripleId } } }
+    where: { term_id: { _eq: $termId } }
     limit: $limit
     order_by: { shares: desc }
   ) {
@@ -211,17 +200,15 @@ query GetTriplePositions($tripleId: numeric!, $limit: Int = 20) {
 ### Search
 
 ```graphql
-# Global search across atoms and triples
+# Global search across atoms
 query GlobalSearch($query: String!, $limit: Int = 20) {
   atoms(
     where: { label: { _ilike: $query } }
     limit: $limit
-    order_by: { vault: { total_shares: desc } }
   ) {
-    id
+    term_id
     label
     type
-    vault { total_shares }
   }
 }
 ```
@@ -232,7 +219,7 @@ Hasura-style operators available on all fields:
 
 | Operator | Description | Example |
 |----------|-------------|---------|
-| `_eq` | Equals | `{ id: { _eq: 123 } }` |
+| `_eq` | Equals | `{ term_id: { _eq: "0x..." } }` |
 | `_neq` | Not equals | `{ status: { _neq: "deleted" } }` |
 | `_gt` | Greater than | `{ total_shares: { _gt: 1000 } }` |
 | `_gte` | Greater than or equal | `{ created_at: { _gte: "2026-01-01" } }` |
@@ -264,8 +251,8 @@ where: { _not: { type: { _eq: "deleted" } } }
 
 ```graphql
 query PaginatedAtoms($limit: Int = 20, $offset: Int = 0) {
-  atoms(limit: $limit, offset: $offset, order_by: { id: desc }) {
-    id
+  atoms(limit: $limit, offset: $offset, order_by: { term_id: desc }) {
+    term_id
     label
   }
   atoms_aggregate {
@@ -281,11 +268,11 @@ Real-time updates via WebSocket:
 ```graphql
 subscription NewTriples {
   triples(order_by: { created_at: desc }, limit: 5) {
-    id
+    term_id
     subject { label }
     predicate { label }
     object { label }
-    vault { total_shares }
+    triple_vault { total_shares }
     created_at
   }
 }
@@ -301,13 +288,19 @@ npx get-graphql-schema https://mainnet.intuition.sh/v1/graphql > schema.graphql
 
 ## Key Schema Types
 
-| Type | Description |
-|------|-------------|
-| `atoms` | Core entities with label, type, vault, relationships |
-| `triples` | Subject-predicate-object claims with FOR/AGAINST vaults |
-| `positions` | User stake positions (shares in a vault) |
-| `deposits` | Deposit transactions |
-| `vaults` | Vault state (total_shares, total_assets, position_count) |
-| `accounts` | User/entity accounts |
-| `signals` | Voting/signaling records |
-| `events` | On-chain event log |
+| Type | Key Fields | Description |
+|------|-----------|-------------|
+| `atoms` | `term_id`, `label`, `type`, `data` | Core entities — identities, concepts, strings |
+| `triples` | `term_id`, `subject`, `predicate`, `object`, `triple_vault` | Subject-predicate-object claims with FOR vault |
+| `positions` | `id`, `shares`, `vault`, `account_id` | User stake positions in a vault |
+| `vaults` | `term_id`, `total_shares`, `total_assets`, `current_share_price` | Vault state |
+| `terms` | `id`, `type`, `atom`, `triple`, `vaults` | Links atoms/triples to their vaults |
+| `accounts` | `id`, `label` | User/entity accounts |
+
+**Important schema notes:**
+- Atoms and triples use `term_id` (String, hex), NOT `id`
+- Positions use `id` (String)
+- Triple stakes are on `triple_vault`, NOT `vault`
+- Counter-vault is accessed via `counter_term_id`, NOT `counter_vault`
+- `subject_id`, `predicate_id`, `object_id` are String type (hex), NOT numeric
+- Atom vault data is accessed through `term { vaults { ... } }`, not directly on atoms
