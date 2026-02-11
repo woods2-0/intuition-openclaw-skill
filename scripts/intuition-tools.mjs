@@ -28,6 +28,8 @@ const TOOLS = {
   triples: 'intuition-triples.mjs',
   stake: 'intuition-stake.mjs',
   agents: 'intuition-agents.mjs',
+  redeem: 'intuition-redeem.mjs',
+  positions: 'intuition-positions.mjs',
   hash: 'exchange-hash.mjs',
   exchange: 'create-exchange-attestation.mjs',
 };
@@ -45,6 +47,8 @@ Commands:
   query <name|atom_id>           Query claims about an entity
   triples <name|atom_id>         List all triples involving an entity (via GraphQL)
   stake <term_id> <amount>       Stake $TRUST on an atom or triple
+  redeem <term_id> <shares|all>  Redeem (unstake) shares from a vault
+  positions [address]            Check staking positions and portfolio value
   agents                         Discover AI agents on-chain (via GraphQL)
   hash <agent1> <agent2>         Compute exchange trust fingerprint
   exchange --name1 A --name2 B   Create on-chain exchange attestation
@@ -56,10 +60,12 @@ Examples:
   node intuition-tools.mjs triples "AI Agent" --json
   node intuition-tools.mjs stake 0x<term-id> 0.5
   node intuition-tools.mjs stake 0x<triple-id> 0.5 --against
+  node intuition-tools.mjs redeem 0x<term-id> all
+  node intuition-tools.mjs positions
   node intuition-tools.mjs agents --json
 
 Environment:
-  INTUITION_PRIVATE_KEY - Required for quickstart, stake, and exchange commands
+  INTUITION_PRIVATE_KEY - Required for quickstart, stake, redeem, and exchange commands
 `);
 }
 

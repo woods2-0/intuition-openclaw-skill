@@ -1,0 +1,13 @@
+{
+  "name": "intuition-openclaw-skill",
+  "version": "1.0.0",
+  "description": "OpenClaw skill for the Intuition protocol — teach AI agents to build on-chain identity, trust, and reputation",
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/test-skill.mjs"
+  },
+  "dependencies": {
+    "viem": "^2.0.0",
+    "@0xintuition/protocol": "^2.0.0"
+  }
+}

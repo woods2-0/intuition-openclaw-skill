@@ -46,7 +46,7 @@ const TESTS = [
     script: 'intuition-query.mjs',
     args: ['--help'],
     expectOutput: 'intuition-query',
-    expectCode: 1,
+    expectCode: 0,
   },
   {
     name: 'intuition-triples --help',
@@ -67,7 +67,21 @@ const TESTS = [
     script: 'intuition-stake.mjs',
     args: ['--help'],
     expectOutput: 'intuition-stake',
-    expectCode: 1,
+    expectCode: 0,
+  },
+  {
+    name: 'intuition-redeem --help',
+    script: 'intuition-redeem.mjs',
+    args: ['--help'],
+    expectOutput: 'intuition-redeem',
+    expectCode: 0,
+  },
+  {
+    name: 'intuition-positions --help',
+    script: 'intuition-positions.mjs',
+    args: ['--help'],
+    expectOutput: 'intuition-positions',
+    expectCode: 0,
   },
 ];
 

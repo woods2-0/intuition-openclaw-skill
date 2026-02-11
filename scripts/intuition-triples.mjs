@@ -45,53 +45,47 @@ async function graphqlQuery(query, variables = {}) {
 
 async function findTriplesByAtomId(atomId, limit) {
   const query = `
-    query FindTriples($atomId: numeric!, $limit: Int!) {
+    query FindTriples($atomId: String!, $limit: Int!) {
       as_subject: triples(
         where: { subject_id: { _eq: $atomId } }
-        order_by: { vault: { total_shares: desc_nulls_last } }
         limit: $limit
       ) {
-        id
-        subject { id label }
-        predicate { id label }
-        object { id label }
-        vault { total_shares position_count }
-        counter_vault { total_shares position_count }
+        term_id
+        subject { term_id label }
+        predicate { term_id label }
+        object { term_id label }
+        triple_vault { total_shares position_count }
       }
       as_object: triples(
         where: { object_id: { _eq: $atomId } }
-        order_by: { vault: { total_shares: desc_nulls_last } }
         limit: $limit
       ) {
-        id
-        subject { id label }
-        predicate { id label }
-        object { id label }
-        vault { total_shares position_count }
-        counter_vault { total_shares position_count }
+        term_id
+        subject { term_id label }
+        predicate { term_id label }
+        object { term_id label }
+        triple_vault { total_shares position_count }
       }
       as_predicate: triples(
         where: { predicate_id: { _eq: $atomId } }
-        order_by: { vault: { total_shares: desc_nulls_last } }
         limit: $limit
       ) {
-        id
-        subject { id label }
-        predicate { id label }
-        object { id label }
-        vault { total_shares position_count }
-        counter_vault { total_shares position_count }
+        term_id
+        subject { term_id label }
+        predicate { term_id label }
+        object { term_id label }
+        triple_vault { total_shares position_count }
       }
     }
   `;
-  return graphqlQuery(query, { atomId: parseInt(atomId), limit });
+  return graphqlQuery(query, { atomId, limit });
 }
 
 async function findAtomByLabel(label) {
   const query = `
     query FindAtom($label: String!) {
       atoms(where: { label: { _eq: $label } }, limit: 1) {
-        id
+        term_id
         label
       }
     }
@@ -139,23 +133,18 @@ appears as subject, object, or predicate.
   let atomId;
   let label = input;
 
-  if (/^\d+$/.test(input)) {
-    // Numeric atom ID
+  function bigIntToHex(n) {
+    return '0x' + n.toString(16).padStart(64, '0');
+  }
+
+  if (input.startsWith('0x') && input.length === 66) {
+    // Hex term_id passed directly
     atomId = input;
-  } else if (input.startsWith('0x') && input.length === 66) {
-    // Hex atom ID — calculate numeric ID via contract
-    const numericId = await client.readContract({
-      address: multiVaultAddress,
-      abi: MultiVaultAbi,
-      functionName: 'calculateAtomId',
-      args: [input],
-    });
-    atomId = numericId.toString();
   } else {
     // Name — look up via GraphQL first, fall back to calculateAtomId
     const atom = await findAtomByLabel(input);
     if (atom) {
-      atomId = atom.id;
+      atomId = atom.term_id;
       label = atom.label;
     } else {
       // Try calculating the atom ID from the name
@@ -178,7 +167,7 @@ appears as subject, object, or predicate.
         process.exit(0);
       }
 
-      atomId = calculatedId.toString();
+      atomId = bigIntToHex(calculatedId);
     }
   }
 
@@ -219,10 +208,10 @@ appears as subject, object, or predicate.
     if (triples.length === 0) return;
     console.log(`\n--- As ${role} (${triples.length}) ---`);
     for (const t of triples) {
-      const forStake = t.vault?.total_shares ? (Number(t.vault.total_shares) / 1e18).toFixed(4) : '0';
-      const stakers = t.vault?.position_count || 0;
+      const forStake = t.triple_vault?.total_shares ? (Number(t.triple_vault.total_shares) / 1e18).toFixed(4) : '0';
+      const stakers = t.triple_vault?.position_count || 0;
       console.log(`  [${t.subject.label}] [${t.predicate.label}] [${t.object.label}]`);
-      console.log(`    Staked: ${forStake} $TRUST (${stakers} stakers) | ID: ${t.id}`);
+      console.log(`    Staked: ${forStake} $TRUST (${stakers} stakers) | ID: ${t.term_id}`);
     }
   }
 

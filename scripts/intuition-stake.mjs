@@ -18,7 +18,7 @@ import {
   MultiVaultAbi,
 } from '@0xintuition/protocol';
 
-function usage() {
+function usage(exitCode = 1) {
   console.log(`
 intuition-stake.mjs - Stake $TRUST on any atom or triple
 
@@ -38,13 +38,16 @@ Environment:
   INTUITION_PRIVATE_KEY    Wallet private key (required if no --wallet)
   INTUITION_WALLET_PATH    Default wallet JSON path
 `);
-  process.exit(1);
+  process.exit(exitCode);
 }
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length < 2 || args.includes('--help') || args.includes('-h')) {
-    usage();
+  if (args.includes('--help') || args.includes('-h')) {
+    usage(0);
+  }
+  if (args.length < 2) {
+    usage(1);
   }
 
   const termId = args[0];
@@ -153,9 +156,27 @@ async function main() {
 
   if (balance < stakeAmount) {
     console.error(`Insufficient balance. Need ${amount} $TRUST but have ${formatEther(balance)}`);
-    console.error('Bridge from Base: https://app.intuition.systems/bridge');
+    console.error('See "How to Get $TRUST" in SKILL.md, or bridge from Base: https://app.intuition.systems/bridge');
     process.exit(1);
   }
+
+  // Preview expected shares at current curve position
+  const expectedShares = await publicClient.readContract({
+    address: multiVaultAddress,
+    abi: MultiVaultAbi,
+    functionName: 'convertToShares',
+    args: [stakeAmount, vaultId],
+  });
+
+  const currentSharePrice = await publicClient.readContract({
+    address: multiVaultAddress,
+    abi: MultiVaultAbi,
+    functionName: 'currentSharePrice',
+    args: [vaultId],
+  });
+
+  console.log(`\nExpected shares: ~${expectedShares.toLocaleString()} (at current share price)`);
+  console.log(`Current share price: ${formatEther(currentSharePrice)} $TRUST`);
 
   console.log('\n--- Staking ---');
 

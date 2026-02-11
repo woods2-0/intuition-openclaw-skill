@@ -35,10 +35,11 @@ const KNOWN_ATOMS = {
   'AI Agent': '0x4990eef19ea1d9b893c1802af9e2ec37fbc1ae138868959ebc23c98b1fc9565e',
 };
 
-const AGENT_NAME = process.argv[2];
-const STAKE_AMOUNT = process.argv[3] || '0.1';
+const args = process.argv.slice(2);
+const AGENT_NAME = args.find(a => !a.startsWith('--'));
+const STAKE_AMOUNT = args[args.indexOf(AGENT_NAME) + 1] || '0.1';
 
-if (!AGENT_NAME) {
+if (!AGENT_NAME || args.includes('--help') || args.includes('-h')) {
   console.log('Intuition Agent Quickstart v3');
   console.log('============================');
   console.log('');

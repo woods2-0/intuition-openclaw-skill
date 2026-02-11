@@ -65,15 +65,13 @@ async function findAgents(limit) {
           predicate: { label: { _eq: "is" } }
           object: { label: { _eq: "AI Agent" } }
         }
-        order_by: { vault: { total_shares: desc_nulls_last } }
         limit: $limit
       ) {
-        id
-        subject { id label }
-        predicate { id label }
-        object { id label }
-        vault { total_shares position_count }
-        counter_vault { total_shares position_count }
+        term_id
+        subject { term_id label }
+        predicate { term_id label }
+        object { term_id label }
+        triple_vault { total_shares position_count }
       }
     }
   `;
@@ -87,15 +85,13 @@ async function findByPredicate(predicateLabel, limit) {
         where: {
           predicate: { label: { _ilike: $predicate } }
         }
-        order_by: { vault: { total_shares: desc_nulls_last } }
         limit: $limit
       ) {
-        id
-        subject { id label }
-        predicate { id label }
-        object { id label }
-        vault { total_shares position_count }
-        counter_vault { total_shares position_count }
+        term_id
+        subject { term_id label }
+        predicate { term_id label }
+        object { term_id label }
+        triple_vault { total_shares position_count }
       }
     }
   `;
@@ -133,17 +129,13 @@ async function main() {
   }
 
   triples.forEach((t, i) => {
-    const forStake = t.vault?.total_shares ? (Number(t.vault.total_shares) / 1e18).toFixed(4) : '0';
-    const againstStake = t.counter_vault?.total_shares ? (Number(t.counter_vault.total_shares) / 1e18).toFixed(4) : '0';
-    const stakers = t.vault?.position_count || 0;
+    const forStake = t.triple_vault?.total_shares ? (Number(t.triple_vault.total_shares) / 1e18).toFixed(4) : '0';
+    const stakers = t.triple_vault?.position_count || 0;
 
     console.log(`${i + 1}. [${t.subject.label}] [${t.predicate.label}] [${t.object.label}]`);
-    console.log(`   Triple ID: ${t.id}`);
+    console.log(`   Term ID: ${t.term_id}`);
     console.log(`   Staked FOR: ${forStake} $TRUST (${stakers} stakers)`);
-    if (parseFloat(againstStake) > 0) {
-      console.log(`   Staked AGAINST: ${againstStake} $TRUST`);
-    }
-    console.log(`   Explorer: https://portal.intuition.systems/app/claim/${t.id}`);
+    console.log(`   Explorer: https://portal.intuition.systems/identity/${t.subject.term_id}`);
     console.log('');
   });
 

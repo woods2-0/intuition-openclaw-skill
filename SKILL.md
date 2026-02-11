@@ -1,6 +1,6 @@
 ---
 name: intuition
-description: "Build on the Intuition protocol -- a decentralized, token-curated knowledge graph. Use this skill when you need to: create on-chain identities (Atoms), make claims about entities (Triples), stake $TRUST to signal conviction, query trust data about any entity, verify agent or human identity, explore the knowledge graph, build reputation systems, or integrate trust signals into applications. Covers the @0xintuition/protocol SDK, GraphQL API, and direct contract interaction."
+description: "Build on the Intuition protocol -- a decentralized, token-curated knowledge graph. Use this skill when you need to: create on-chain identities (Atoms), make claims about entities (Triples), stake $TRUST to signal conviction, redeem positions for profit, check your staking portfolio, query trust data about any entity, verify agent or human identity, explore the knowledge graph, build reputation systems, or integrate trust signals into applications. Covers the @0xintuition/protocol SDK, GraphQL API, and direct contract interaction."
 user-invocable: true
 metadata: {"openclaw":{"emoji":"atom_symbol","requires":{"env":["INTUITION_PRIVATE_KEY"]},"primaryEnv":"INTUITION_PRIVATE_KEY"}}
 ---
@@ -14,6 +14,24 @@ Intuition is a decentralized protocol that creates a **token-curated knowledge g
 Think of it as **Community Notes meets prediction markets, but for all data**. Every claim has a market price determined by how much $TRUST is staked on it. More stake = stronger signal of community trust.
 
 **Why it matters for agents:** When your agent needs to decide whether to trust an address, verify a capability claim, or assess an entity's reputation, Intuition provides cryptoeconomically-backed trust signals -- not just social votes, but real economic commitment.
+
+## Getting Started (Zero to Operational)
+
+**Just want to read data?** You need nothing. The GraphQL API at `https://mainnet.intuition.sh/v1/graphql` requires no auth, no wallet, no setup. Skip to the Task Guide and start querying.
+
+**Want to write data (create identities, make claims, stake)?** Follow this path:
+
+1. **Wallet:** Do you already have an EVM wallet (Ethereum, Base, Arbitrum, etc.)?
+   - **Yes** → Set `export INTUITION_PRIVATE_KEY=0x_your_existing_key`. You're done with this step. Any standard EVM private key works on Intuition -- it's the same key format.
+   - **No** → The quickstart script generates one automatically. Or generate one with `viem` (see Wallet & Environment Setup below).
+
+2. **Fund with $TRUST:** Your wallet needs $TRUST on the Intuition L3. See "How to Get $TRUST" below for step-by-step instructions (buy on Coinbase, swap on Uniswap, or bridge from Base).
+
+3. **Install:** Run `npm install` in this skill's directory.
+
+4. **Onboard:** Run `node {baseDir}/scripts/intuition-quickstart-v3.mjs "YourName" 0.5` to create your on-chain identity. This creates your identity Atom, asserts `[YourName] [is] [AI Agent]`, and stakes 0.5 $TRUST on the claim.
+
+5. **You're operational.** Start creating claims, staking on data, querying the knowledge graph, and managing positions.
 
 ## Core Concepts
 
@@ -58,6 +76,40 @@ Each Triple has **two vaults** -- a FOR vault (agreeing with the claim) and an A
 
 Vaults use **bonding curves** -- early stakers pay less per share. As more $TRUST flows in, each share costs more. This rewards early, accurate curation.
 
+**How bonding curves work in practice:**
+```
+Staker 1 deposits 1 $TRUST when total_shares = 10   → gets ~100 shares (cheap)
+Staker 2 deposits 1 $TRUST when total_shares = 110  → gets ~90 shares (more expensive)
+Staker 3 deposits 1 $TRUST when total_shares = 200  → gets ~50 shares (even more expensive)
+
+Staker 1's 100 shares are now worth more $TRUST than they paid.
+If Staker 1 redeems, they receive more than their original 1 $TRUST.
+```
+The earlier you stake on accurate data, the more your position appreciates as others validate it.
+
+### How Atoms and Triples Fit Together
+
+```
+  ATOMS (nodes)                    TRIPLES (edges)
+  ┌─────────┐                     ┌──────────────────────────────────────┐
+  │  Axiom  │──── is ────────────▶│ [Axiom] [is] [AI Agent]             │
+  └─────────┘                     │   └── 5.2 $TRUST staked FOR         │
+       │                          └──────────────────────────────────────┘
+       │
+       ├──── collaboratesWith ──▶ ┌──────────────────────────────────────┐
+       │                          │ [Axiom] [collaboratesWith] [Forge]   │
+       │                          │   └── 2.1 $TRUST staked FOR         │
+       │                          └──────────────────────────────────────┘
+       │
+       └──── believes ─────────▶ ┌──────────────────────────────────────┐
+                                  │ [Axiom] [believes] [Trust is earned] │
+                                  │   └── 0.5 $TRUST staked FOR         │
+                                  │   └── 0.1 $TRUST staked AGAINST     │
+                                  └──────────────────────────────────────┘
+```
+
+Every box on the right is a Triple with its own FOR and AGAINST vaults. The $TRUST staked on each one is the market's signal of how accurate or important that claim is.
+
 ### The Knowledge Graph
 
 All Atoms (nodes) and Triples (edges), weighted by $TRUST stakes, form a queryable knowledge graph. You can:
@@ -72,9 +124,15 @@ All Atoms (nodes) and Triples (edges), weighted by $TRUST stakes, form a queryab
 
 `INTUITION_PRIVATE_KEY` is a standard EVM private key (0x + 64 hex characters). It's the same kind of key used on Ethereum, Base, Arbitrum, etc. -- nothing Intuition-specific about the key itself. It controls a wallet on the Intuition L3 chain.
 
-**How to get one:**
-- **The quickstart script generates one automatically** if none exists. Run `intuition-quickstart-v3.mjs` and it will create a wallet, save it to `~/.intuition-wallet-<name>/`, and use it for onboarding.
-- **Or generate one programmatically:**
+**Already have an EVM wallet?** Just use it. If you have a private key for Ethereum, Base, Arbitrum, or any other EVM chain, it works on Intuition. Set it and move on:
+
+```bash
+export INTUITION_PRIVATE_KEY=0x_your_existing_private_key
+```
+
+**Don't have a wallet?** Two options:
+- **Quickstart auto-generates one:** Run `intuition-quickstart-v3.mjs` and it will create a wallet, save it to `~/.intuition-wallet-<name>/`, and use it for onboarding. If `INTUITION_PRIVATE_KEY` is already set, it uses that instead.
+- **Generate one programmatically:**
   ```javascript
   import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
   const key = generatePrivateKey();
@@ -82,9 +140,6 @@ All Atoms (nodes) and Triples (edges), weighted by $TRUST stakes, form a queryab
   console.log('Private key:', key);
   console.log('Address:', account.address);
   ```
-- **Or use an existing EVM wallet** -- any private key works.
-
-**Funding the wallet:** The wallet needs **$TRUST** (Intuition's native token) to pay for on-chain operations. $TRUST exists on Base L2 (`0x6cd905dF2Ed214b22e0d48FF17CD4200C1C6d8A3`) and must be bridged to the Intuition L3 via `https://app.intuition.systems/bridge`.
 
 **Read operations are free.** You only need a funded wallet for write operations (creating atoms, creating triples, staking). Queries via the SDK or GraphQL API require no wallet at all.
 
@@ -100,10 +155,42 @@ export INTUITION_WALLET_PATH=/path/to/wallet.json
 **RPC:** `https://rpc.intuition.systems/http`
 **Explorer:** `https://explorer.intuition.systems`
 
+### How to Get $TRUST
+
+$TRUST is the native token of the Intuition L3. You need it for any write operation (creating atoms, creating triples, staking). Here's how to get it:
+
+**Path 1: Buy on a centralized exchange (easiest for humans)**
+1. Buy TRUST on [Coinbase](https://www.coinbase.com/price/intuition), Kraken, KuCoin, or Gate.io
+2. Withdraw TRUST to your wallet address on Base
+3. Bridge from Base to Intuition L3 at `https://app.intuition.systems/bridge`
+
+**Path 2: Swap on a DEX (if you have ETH or USDC on Base)**
+1. Swap ETH or USDC for $TRUST on Base:
+   - [Uniswap (Base)](https://app.uniswap.org/swap?chain=base&outputCurrency=0x6cd905dF2Ed214b22e0d48FF17CD4200C1C6d8A3)
+   - [Aerodrome (Base)](https://aerodrome.finance/swap?from=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&to=0x6cd905dF2Ed214b22e0d48FF17CD4200C1C6d8A3)
+2. Bridge from Base to Intuition L3 at `https://app.intuition.systems/bridge`
+
+**Path 3: Already have $TRUST on Base?**
+Bridge directly at `https://app.intuition.systems/bridge`
+
+**$TRUST on Base (ERC-20):** `0x6cd905dF2Ed214b22e0d48FF17CD4200C1C6d8A3`
+
+**How much do you need?** Read-only operations are free. For writes:
+
+| Operation | Typical Cost |
+|-----------|-------------|
+| Create 1 atom | ~0.01 $TRUST |
+| Create 1 triple | ~0.01 $TRUST |
+| Stake on a claim | Your chosen amount (minimum ~0.01) |
+| Full agent onboarding (atom + triple + 0.5 stake) | ~0.5-2 $TRUST |
+| Query (GraphQL or contract read) | Free |
+
+Exact atom/triple costs vary — always call `multiVaultGetAtomCost()` and `multiVaultGetTripleCost()` before write operations.
+
 ### Dependencies
 
 ```bash
-npm install viem @0xintuition/protocol
+npm install
 ```
 
 ### SDK Client Setup
@@ -467,6 +554,120 @@ query GlobalSearch($query: String!) {
 
 **GraphQL endpoint:** `https://mainnet.intuition.sh/v1/graphql` (no auth required, Hasura-powered).
 
+### I want to check my positions
+
+See what you're staked on, how many shares you hold, and the current value:
+
+**Using the positions script:**
+```bash
+# Check positions for the wallet in INTUITION_PRIVATE_KEY
+node {baseDir}/scripts/intuition-positions.mjs
+
+# Check a specific address
+node {baseDir}/scripts/intuition-positions.mjs 0x<address>
+
+# JSON output (for programmatic use)
+node {baseDir}/scripts/intuition-positions.mjs --json
+```
+
+**Using GraphQL:**
+```graphql
+query GetPositions($address: String!) {
+  positions(
+    where: { account_id: { _eq: $address } }
+    order_by: { shares: desc }
+    limit: 50
+  ) {
+    shares
+    vault {
+      total_shares
+      total_assets
+      current_share_price
+      atom { label }
+      triple {
+        subject { label }
+        predicate { label }
+        object { label }
+      }
+    }
+  }
+}
+```
+
+**Calculate position value:**
+```javascript
+// Value = (your shares / total shares) * total assets
+const value = (BigInt(shares) * BigInt(totalAssets)) / BigInt(totalShares);
+const valueInTrust = Number(value) / 1e18;
+```
+
+### I want to redeem (unstake) my position
+
+Redeeming converts your shares back to $TRUST. You can redeem all shares or a partial amount.
+
+**Using the redeem script:**
+```bash
+# Redeem all shares from a vault
+node {baseDir}/scripts/intuition-redeem.mjs 0x<term-id> all
+
+# Redeem a specific number of shares
+node {baseDir}/scripts/intuition-redeem.mjs 0x<term-id> 500000000000000000
+```
+
+The script auto-detects atom vs triple and calls the correct contract method. It shows your current position and expected $TRUST before executing.
+
+**Using the SDK:**
+```javascript
+// Check how many shares you can redeem
+const maxShares = await publicClient.readContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: 'maxRedeem',
+  args: [account.address, termId],
+});
+
+// Preview how much $TRUST you'll receive
+const expectedValue = await publicClient.readContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: 'convertToAssets',
+  args: [maxShares, termId],
+});
+
+// Redeem (use redeemAtom for atoms, redeemTriple for triples)
+const isTriple = await publicClient.readContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: 'isTriple',
+  args: [termId],
+});
+
+const hash = await walletClient.writeContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: isTriple ? 'redeemTriple' : 'redeemAtom',
+  args: [maxShares, account.address, termId],
+});
+```
+
+**Important:** Exit fees (0-10%) may apply on redemptions. The `convertToAssets` preview is pre-fee, so actual $TRUST received may be slightly less.
+
+### I want to evaluate positions for profit
+
+**Check if a position has appreciated:**
+```javascript
+const currentShares = await maxRedeem(account.address, termId);
+const currentValue = await convertToAssets(currentShares, termId);
+
+// Compare to your original stake (you must track entry cost yourself)
+const profit = Number(currentValue) / 1e18 - originalStakeAmount;
+const returnPct = (Number(currentValue) / 1e18 / originalStakeAmount - 1) * 100;
+```
+
+**Strategy tips:**
+- **Early staking wins.** Bonding curves mean each new share costs more. If you staked early on an accurate claim, your shares are worth more as others pile on.
+- **Diversify across many claims.** Small stakes across many accurate claims beats one large stake.
+- **Watch the FOR/AGAINST ratio.** Growing counter-stakes suggest the claim is being disputed.
+- **Partial redemptions are fine.** Take profit on half, let the rest ride.
+
+For detailed speculation strategies, see `references/patterns.md` → Speculative Curation.
+
 ## Scripts Reference
 
 | Script | Purpose | When to Use |
@@ -475,11 +676,91 @@ query GlobalSearch($query: String!) {
 | `intuition-query.mjs` | Query atoms and claims about an entity | Checking what's known about an entity |
 | `intuition-verify.mjs` | Verify an agent's on-chain identity exists | Trust checks before interaction |
 | `intuition-stake.mjs` | Stake $TRUST on any atom or triple | Signaling conviction on data or claims |
+| `intuition-redeem.mjs` | Redeem (unstake) shares from a vault | Taking profit or exiting a position |
+| `intuition-positions.mjs` | Check portfolio — positions, values | Monitoring staking portfolio |
 | `intuition-triples.mjs` | Query all triples for an entity via GraphQL | Exploring relationships and claims |
 | `intuition-agents.mjs` | Discover AI agents on-chain via GraphQL | Finding agents in the knowledge graph |
 | `intuition-tools.mjs` | Unified CLI (routes to other scripts) | Quick access to any command |
 | `exchange-hash.mjs` | Compute trust fingerprint between two agents | Privacy-preserving interaction proof |
 | `create-exchange-attestation.mjs` | Create on-chain exchange attestation | Recording agent-to-agent trust |
+
+### Complete End-to-End Example
+
+This single code block shows the full lifecycle: setup → query → stake → check position → redeem.
+
+```javascript
+import { createPublicClient, createWalletClient, http, parseEther, formatEther, toHex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import {
+  intuitionMainnet, getMultiVaultAddressFromChainId, MultiVaultAbi,
+  multiVaultDeposit, multiVaultGetAtomCost, multiVaultCreateAtoms,
+} from '@0xintuition/protocol';
+import { stringToHex } from 'viem';
+
+// --- SETUP ---
+const account = privateKeyToAccount(process.env.INTUITION_PRIVATE_KEY);
+const publicClient = createPublicClient({
+  chain: intuitionMainnet,
+  transport: http('https://rpc.intuition.systems/http'),
+});
+const walletClient = createWalletClient({
+  chain: intuitionMainnet,
+  transport: http('https://rpc.intuition.systems/http'),
+  account,
+});
+const multiVaultAddress = getMultiVaultAddressFromChainId(intuitionMainnet.id);
+
+// --- QUERY: Does "MyAgent" exist on-chain? ---
+const atomId = await publicClient.readContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: 'calculateAtomId',
+  args: [toHex("MyAgent")],
+});
+const exists = await publicClient.readContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: 'isTermCreated',
+  args: [atomId],
+});
+console.log(`MyAgent exists: ${exists}, Atom ID: ${atomId}`);
+
+// --- CREATE (if needed) ---
+if (!exists) {
+  const atomCost = await multiVaultGetAtomCost({ address: multiVaultAddress, publicClient });
+  const tx = await multiVaultCreateAtoms(
+    { address: multiVaultAddress, walletClient, publicClient },
+    { args: [[stringToHex("MyAgent")], [atomCost]], value: atomCost }
+  );
+  console.log('Created atom, tx:', tx);
+}
+
+// --- STAKE: Deposit 0.1 $TRUST on the atom ---
+const stakeTx = await multiVaultDeposit(
+  { address: multiVaultAddress, walletClient, publicClient },
+  { args: [account.address, atomId], value: parseEther('0.1') }
+);
+console.log('Staked, tx:', stakeTx);
+
+// --- CHECK POSITION ---
+const shares = await publicClient.readContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: 'maxRedeem',
+  args: [account.address, atomId],
+});
+const value = await publicClient.readContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: 'convertToAssets',
+  args: [shares, atomId],
+});
+console.log(`Position: ${shares} shares, worth ${formatEther(value)} $TRUST`);
+
+// --- REDEEM: Withdraw all shares ---
+const redeemTx = await walletClient.writeContract({
+  address: multiVaultAddress, abi: MultiVaultAbi,
+  functionName: 'redeemAtom',
+  args: [shares, account.address, atomId],
+});
+console.log('Redeemed, tx:', redeemTx);
+```
 
 ## Rules for the Agent
 
@@ -508,7 +789,7 @@ query GlobalSearch($query: String!) {
 
 ## Troubleshooting
 
-- **"insufficient funds"**: Wallet needs $TRUST. Bridge from Base at `https://app.intuition.systems/bridge`.
+- **"insufficient funds"**: Wallet needs $TRUST. See "How to Get $TRUST" above — buy on Coinbase, swap on Uniswap (Base), or bridge from Base at `https://app.intuition.systems/bridge`.
 - **"atom already exists"**: This is fine -- use `calculateAtomId` to get the existing ID. Don't create duplicates.
 - **"not a valid triple ID"**: The ID doesn't correspond to a triple. Check with `multiVaultIsTriple`.
 - **No results from query**: Check spelling. Atom IDs are case-sensitive and computed from exact byte content.
@@ -520,4 +801,4 @@ query GlobalSearch($query: String!) {
 See the `references/` directory for:
 - `protocol-reference.md` -- Contract ABIs, all SDK methods, vault mechanics, bonding curves, fee structure
 - `graphql-reference.md` -- Full query catalog, schema types, filter operators, pagination
-- `patterns.md` -- Common integration patterns, trust evaluation frameworks, multi-agent coordination
+- `patterns.md` -- Common integration patterns, trust evaluation frameworks, speculative curation, multi-agent coordination

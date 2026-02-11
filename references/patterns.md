@@ -209,3 +209,102 @@ Rough costs for common operations (varies with network conditions):
 | Query (contract read) | Free (no gas for view calls) |
 
 Always call `multiVaultGetAtomCost()` and `multiVaultGetTripleCost()` before write operations to get exact current costs.
+
+## Speculative Curation
+
+How to use Intuition's bonding curve mechanics to identify undervalued claims and profit from early, accurate curation.
+
+### Finding Opportunities
+
+- Query for low-stake triples that represent accurate claims (community hasn't discovered them yet)
+- Look for new entities with few triples — early claims on accurate data are undervalued
+- Monitor new atoms being created (GraphQL subscription or periodic polling)
+- Search for claims you have domain knowledge about — your information advantage is your edge
+
+```graphql
+# Find low-stake triples (potential undervalued claims)
+query FindOpportunities($minPositions: Int = 1, $maxShares: numeric = "1000000000000000000") {
+  triples(
+    where: {
+      vault: {
+        total_shares: { _lt: $maxShares }
+        position_count: { _gte: $minPositions }
+      }
+    }
+    order_by: { vault: { position_count: desc } }
+    limit: 20
+  ) {
+    id
+    subject { label }
+    predicate { label }
+    object { label }
+    vault { total_shares position_count current_share_price }
+    counter_vault { total_shares }
+  }
+}
+```
+
+### Evaluating Risk
+
+Decision framework:
+```
+1. Is the claim factually accurate?
+   NO  -> Don't stake. Accurate curation is the whole game.
+   YES -> Continue
+
+2. Is the FOR/AGAINST ratio favorable?
+   High AGAINST relative to FOR -> Contested. Higher risk, higher reward if you're right.
+   No AGAINST -> Uncontested. Lower risk.
+
+3. How concentrated are the stakers?
+   Many small stakers -> Distributed signal, organic growth likely
+   One large staker -> Concentrated. Could be creator-only deposit.
+
+4. Is the claim about a growing or static topic?
+   Growing (new project, active agent, trending topic) -> More future stakers likely
+   Static (old, niche, forgotten) -> Low growth potential
+```
+
+### Entry Strategy
+
+- **Stake early on accurate claims.** Bonding curves reward early stakers — each subsequent stake costs more per share, so your position appreciates as others agree.
+- **Use small stakes to diversify.** Instead of one large stake, spread across many accurate claims. The ones that attract attention will grow; the others stay flat.
+- **Create triples no one else has.** If you know something is true and no triple exists for it, create it AND stake on it. You get the cheapest possible shares.
+
+### Exit Strategy
+
+```javascript
+// Check if your position has appreciated
+const currentShares = await maxRedeem(account.address, tripleId);
+const currentValue = await convertToAssets(currentShares, tripleId);
+const entryValue = originalStakeAmount; // Track this yourself
+
+const profit = Number(currentValue - entryValue) / 1e18;
+const returnPct = (Number(currentValue) / Number(entryValue) - 1) * 100;
+
+if (returnPct > targetReturn) {
+  // Redeem for profit
+  await redeemTriple(currentShares, account.address, tripleId);
+}
+```
+
+- **Set target returns.** Decide beforehand: "I'll redeem if my position doubles" or "I'll redeem after 30 days regardless."
+- **Partial redemptions.** You don't have to redeem all shares. Take profit on half and let the rest ride.
+- **Watch for counter-staking.** If AGAINST stakes start growing, reassess whether the claim is still consensus-aligned.
+
+### Cost Awareness
+
+- **Entry fees (0-10%)** are charged on deposits. Your position starts at a slight loss.
+- **Exit fees (0-10%)** are charged on redemptions. Factor this into your target return.
+- **Small positions are less efficient.** Fees eat a larger percentage of small stakes. Minimum practical stake is ~0.1 $TRUST.
+- **Gas costs** are negligible on the Intuition L3 but nonzero.
+
+### Position Tracking
+
+Use the positions script to monitor your portfolio:
+```bash
+node scripts/intuition-positions.mjs              # See all positions
+node scripts/intuition-positions.mjs --json        # Machine-readable output for automated strategies
+```
+
+For automated strategies, poll positions periodically and compare against entry prices (which you must track yourself — the chain doesn't store your cost basis).

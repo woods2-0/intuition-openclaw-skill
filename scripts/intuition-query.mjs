@@ -15,7 +15,7 @@ import {
   MultiVaultAbi,
 } from '@0xintuition/protocol';
 
-function usage() {
+function usage(exitCode = 1) {
   console.log(`
 intuition-query.mjs - Query claims about an entity
 
@@ -31,7 +31,7 @@ Examples:
 Checks if the entity exists on-chain and shows known identity claims.
 For full relationship discovery, use intuition-triples.mjs (GraphQL-powered).
 `);
-  process.exit(1);
+  process.exit(exitCode);
 }
 
 async function getVaultInfo(publicClient, multiVaultAddress, tripleId) {
@@ -46,8 +46,11 @@ async function getVaultInfo(publicClient, multiVaultAddress, tripleId) {
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length < 1 || args.includes('--help') || args.includes('-h')) {
-    usage();
+  if (args.includes('--help') || args.includes('-h')) {
+    usage(0);
+  }
+  if (args.length < 1) {
+    usage(1);
   }
 
   // Parse --name and --id flags
